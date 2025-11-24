@@ -1,66 +1,27 @@
 FROM php:8.1-cli
 
-# Установка системных зависимостей
+# Базовые системные зависимости и расширения PHP для TCP клиента (минимальная поддерживаемая версия 8.1)
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     libzip-dev \
     zip \
     unzip \
-    autoconf \
-    g++ \
-    make \
-    libtool \
-    pkg-config \
-    zlib1g-dev \
-    cmake \
+    && docker-php-ext-install sockets \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Установка protoc
-RUN apt-get update && apt-get install -y protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/*
-
-# Установка gRPC extension через PECL (с оптимизацией компиляции)
-# Используем больше параллельных процессов для ускорения
-RUN pecl install grpc \
-    && docker-php-ext-enable grpc
-
-# Установка protobuf extension через PECL
-RUN pecl install protobuf \
-    && docker-php-ext-enable protobuf
-
-# Клонирование и компиляция grpc_php_plugin
-# Используем только необходимые компоненты для ускорения
-RUN cd /tmp && \
-    git clone --recurse-submodules -b v1.76.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
-    cd grpc && \
-    mkdir -p cmake/build && \
-    cd cmake/build && \
-    # Минимальная конфигурация для компиляции только плагина
-    cmake -DgRPC_BUILD_TESTS=OFF -DgRPC_BUILD_GRPC_CPP_PLUGIN=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ../.. && \
-    make grpc_php_plugin -j$(nproc) && \
-    cp grpc_php_plugin /usr/local/bin/ && \
-    chmod +x /usr/local/bin/grpc_php_plugin && \
-    cd / && \
-    rm -rf /tmp/grpc
-
-# Установка рабочей директории
+# Рабочая директория
 WORKDIR /app
 
-# Копирование composer файлов для установки зависимостей
+# Предварительная установка зависимостей (используем кеш composer)
 COPY composer.json composer.lock* ./
-
-# Установка зависимостей (если есть composer.lock)
 RUN if [ -f composer.lock ]; then composer install --no-interaction --prefer-dist; fi
 
-# Копирование остальных файлов
+# Копируем остальной проект
 COPY . .
-
-# Создание директории для сгенерированных файлов
-RUN mkdir -p src/Generated
 
 # Команда по умолчанию
 CMD ["bash"]

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PHP клиент с gRPC extension и всеми инструментами для разработки
+  # PHP клиент с TCP/JSON транспортом, без gRPC extension
   php-dev:
     build:
       context: .
@@ -9,19 +9,19 @@ services:
     container_name: octawire-php-client-dev
     working_dir: /app
     volumes:
-      # Монтируем код PHP клиента
       - .:/app
-      # Монтируем proto файлы из сервиса
-      - ../..:/workspace
-      # Кэш Composer
       - composer-cache:/tmp/composer-cache
     environment:
       - COMPOSER_CACHE_DIR=/tmp/composer-cache
-    command: tail -f /dev/null  # Держим контейнер запущенным
+      - AUTH_TCP_HOST=host.docker.internal
+      - AUTH_TCP_PORT=9770
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+    command: tail -f /dev/null
     networks:
       - octawire-dev
 
-  # Redis для тестирования кэширования (если нужно)
+  # Redis для тестирования кэширования ключей
   redis:
     image: redis:7-alpine
     container_name: octawire-php-client-redis
@@ -35,18 +35,17 @@ services:
     networks:
       - octawire-dev
 
-  # Auth Service для тестирования (используем локальный build)
-  # Если сервис уже запущен локально, можно закомментировать этот сервис
+  # Auth Service (Go) — источник proto-моделей, TCP/JSON gateway и gRPC API
   auth-service:
     build:
       context: ../..
       dockerfile: Dockerfile.alpine
     container_name: octawire-auth-service-test
     ports:
-      - "50051:50051"  # gRPC
+      - "50051:50051"  # gRPC для Go клиентов
       - "9765:9765"    # HTTP health/metrics
+      - "9770:9770"    # JSON/TCP gateway (protojson bridge)
     volumes:
-      # Монтируем конфиг и ключи
       - ../../config:/etc/auth-service/config:ro
       - /tmp/auth-keys:/tmp/auth-keys:ro
     environment:
@@ -62,7 +61,7 @@ services:
       timeout: 3s
       retries: 3
     profiles:
-      - with-service  # Запускается только с --profile with-service
+      - with-service
 
 volumes:
   composer-cache:

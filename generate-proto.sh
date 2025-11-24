@@ -1,44 +1,16 @@
 #!/bin/bash
 
-# Скрипт для генерации PHP классов из proto файлов
-# Требуется: protoc и grpc_php_plugin
+# TCP/JSON клиент больше не использует gRPC/Protobuf генерацию.
+# Файл оставлен для совместимости Makefile и будет выведен в депрекейт-сообщение.
 
-set -e
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROTO_DIR="$SCRIPT_DIR/../../api"
-OUTPUT_DIR="$SCRIPT_DIR/src/Generated"
+cat <<'EOF'
+⚠️  Proto generation is no longer required for the PHP TCP client.
 
-# Проверка наличия protoc
-if ! command -v protoc &> /dev/null; then
-    echo "Error: protoc not found. Install from https://grpc.io/docs/protoc-installation/"
-    exit 1
-fi
-
-# Проверка наличия grpc_php_plugin
-if ! command -v grpc_php_plugin &> /dev/null; then
-    echo "Error: grpc_php_plugin not found. Install grpc extension for PHP."
-    echo "See: https://github.com/grpc/grpc/blob/master/src/php/README.md"
-    exit 1
-fi
-
-# Создание директории для сгенерированных файлов
-mkdir -p "$OUTPUT_DIR"
-
-echo "Generating PHP classes from proto files..."
-echo "Proto directory: $PROTO_DIR"
-echo "Output directory: $OUTPUT_DIR"
-
-# Генерация PHP классов
-protoc \
-    --php_out="$OUTPUT_DIR" \
-    --grpc_out="$OUTPUT_DIR" \
-    --plugin=protoc-gen-grpc="$(which grpc_php_plugin)" \
-    --proto_path="$PROTO_DIR" \
-    "$PROTO_DIR/jwt.proto"
-
-echo "✅ PHP classes generated successfully in $OUTPUT_DIR"
-echo ""
-echo "Generated files:"
-find "$OUTPUT_DIR" -name "*.php" | head -10
+The Go Auth Service remains the source of truth for proto definitions.
+TCP/JSON payloads are derived from those models via protojson on the server
+side, поэтому PHP-клиент больше не генерирует классы и не требует gRPC
+плагина/расширений. См. docs/TODO.md и docs/ROADMAP.md для деталей.
+EOF
 
