@@ -1,0 +1,64 @@
+FROM php:8.1-cli
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libzip-dev \
+    zip \
+    unzip \
+    autoconf \
+    g++ \
+    make \
+    libtool \
+    pkg-config \
+    zlib1g-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Установка Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Установка protoc
+RUN apt-get update && apt-get install -y protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Установка gRPC extension через PECL
+RUN pecl install grpc \
+    && docker-php-ext-enable grpc
+
+# Установка protobuf extension через PECL
+RUN pecl install protobuf \
+    && docker-php-ext-enable protobuf
+
+# Клонирование и компиляция grpc_php_plugin
+RUN cd /tmp && \
+    git clone --recurse-submodules -b v1.76.0 --depth 1 --shallow-submodules https://github.com/grpc/grpc && \
+    cd grpc && \
+    mkdir -p cmake/build && \
+    cd cmake/build && \
+    cmake ../.. && \
+    make grpc_php_plugin -j$(nproc) && \
+    cp grpc_php_plugin /usr/local/bin/ && \
+    chmod +x /usr/local/bin/grpc_php_plugin && \
+    cd / && \
+    rm -rf /tmp/grpc
+
+# Установка рабочей директории
+WORKDIR /app
+
+# Копирование composer файлов для установки зависимостей
+COPY composer.json composer.lock* ./
+
+# Установка зависимостей (если есть composer.lock)
+RUN if [ -f composer.lock ]; then composer install --no-interaction --prefer-dist; fi
+
+# Копирование остальных файлов
+COPY . .
+
+# Создание директории для сгенерированных файлов
+RUN mkdir -p src/Generated
+
+# Команда по умолчанию
+CMD ["bash"]
+

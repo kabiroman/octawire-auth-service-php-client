@@ -13,6 +13,28 @@ PHP клиент для работы с Auth Service (v0.9.1) через gRPC.
 
 ## Установка
 
+### Вариант 1: Docker (рекомендуется для разработки)
+
+Используйте Docker окружение для изоляции всех зависимостей:
+
+```bash
+# Сборка образа
+make docker-build
+
+# Запуск контейнеров
+make docker-up
+
+# Вход в контейнер
+make docker-shell
+
+# Генерация proto классов
+make docker-generate
+```
+
+Подробнее см. [README.docker.md](./README.docker.md)
+
+### Вариант 2: Локальная установка
+
 ```bash
 composer require kabiroman/octawire-auth-service-php-client
 ```

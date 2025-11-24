@@ -1,0 +1,8 @@
+vendor/
+.phpunit.cache/
+*.cache
+.git/
+.DS_Store
+src/Generated/
+composer.lock
+

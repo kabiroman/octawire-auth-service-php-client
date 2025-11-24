@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PHP клиент с gRPC extension и всеми инструментами для разработки
+  php-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: octawire-php-client-dev
+    working_dir: /app
+    volumes:
+      # Монтируем код PHP клиента
+      - .:/app
+      # Монтируем proto файлы из сервиса
+      - ../..:/workspace
+      # Кэш Composer
+      - composer-cache:/tmp/composer-cache
+    environment:
+      - COMPOSER_CACHE_DIR=/tmp/composer-cache
+    command: tail -f /dev/null  # Держим контейнер запущенным
+    networks:
+      - octawire-dev
+
+  # Redis для тестирования кэширования (если нужно)
+  redis:
+    image: redis:7-alpine
+    container_name: octawire-php-client-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - octawire-dev
+
+  # Auth Service для тестирования (используем локальный build)
+  # Если сервис уже запущен локально, можно закомментировать этот сервис
+  auth-service:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.alpine
+    container_name: octawire-auth-service-test
+    ports:
+      - "50051:50051"  # gRPC
+      - "9765:9765"    # HTTP health/metrics
+    volumes:
+      # Монтируем конфиг и ключи
+      - ../../config:/etc/auth-service/config:ro
+      - /tmp/auth-keys:/tmp/auth-keys:ro
+    environment:
+      - CONFIG_PATH=/etc/auth-service/config/config.json
+    networks:
+      - octawire-dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9765/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    profiles:
+      - with-service  # Запускается только с --profile with-service
+
+volumes:
+  composer-cache:
+    driver: local
+
+networks:
+  octawire-dev:
+    driver: bridge
+
