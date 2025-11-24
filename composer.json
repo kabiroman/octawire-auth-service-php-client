@@ -2,6 +2,7 @@
     "name": "kabiroman/octawire-auth-service-php-client",
     "description": "PHP client for Octawire Auth Service (gRPC)",
     "type": "library",
+    "version": "0.9.1",
     "keywords": ["auth", "jwt", "grpc", "octawire"],
     "license": "MIT",
     "require": {
