@@ -3,8 +3,14 @@
 declare(strict_types=1);
 
 /**
- * Тестовый скрипт для PHP TCP/JSON клиента Auth Service.
+ * Smoke test для PHP TCP/JSON клиента Auth Service.
+ * 
  * Проверяет базовые компоненты (Config, RetryHandler, KeyCache) и доступность сервисов.
+ * Не требует запущенного Auth Service (кроме health check опционально).
+ * 
+ * Для полных интеграционных тестов JATP клиента см.:
+ * - test_jatp.php - базовый тест основных методов
+ * - test_jatp_full.php - полный тест всех 14 методов
  */
 
 require_once __DIR__ . '/vendor/autoload.php';
@@ -131,5 +137,7 @@ if ($httpCode === 200 && $response) {
 
 echo "\n=== Test Summary ===\n";
 echo "TCP client prerequisites validated (sockets/json extensions, config, cache, retry).\n";
-echo "Full TCP transport tests will be added после реализации AuthClient поверх JSON/TCP.\n";
-echo "\n✓ Test completed!\n";
+echo "\nNote: This is a smoke test. For full JATP integration tests, run:\n";
+echo "  - php test_jatp.php (basic integration test)\n";
+echo "  - php test_jatp_full.php (comprehensive test suite)\n";
+echo "\n✓ Smoke test completed!\n";
