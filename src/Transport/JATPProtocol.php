@@ -17,7 +17,7 @@ class JATPProtocol
      * Build JATP request JSON
      *
      * @param string $method Service and method name (e.g., "JWTService.IssueToken")
-     * @param array $payload Request payload (proto message fields)
+     * @param mixed $payload Request payload (proto message fields as array or object)
      * @param string|null $jwtToken JWT token for authentication
      * @param string|null $serviceName Service name for inter-service auth
      * @param string|null $serviceSecret Service secret for inter-service auth
@@ -27,12 +27,17 @@ class JATPProtocol
      */
     public function buildRequest(
         string $method,
-        array $payload,
+        mixed $payload,
         ?string $jwtToken = null,
         ?string $serviceName = null,
         ?string $serviceSecret = null,
         ?string $requestId = null
     ): string {
+        // Convert empty array to empty object for protobuf compatibility
+        if (is_array($payload) && empty($payload)) {
+            $payload = new \stdClass();
+        }
+        
         $request = [
             'protocol_version' => self::PROTOCOL_VERSION,
             'method' => $method,

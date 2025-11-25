@@ -40,7 +40,7 @@ class JATPClient
      */
     public function call(
         string $method,
-        array $payload,
+        mixed $payload,
         ?string $jwtToken = null,
         ?string $serviceName = null,
         ?string $serviceSecret = null

@@ -12,7 +12,8 @@ use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
  */
 class TCPConnection
 {
-    private ?\resource $socket = null;
+    /** @var resource|null */
+    private $socket = null;
     private Config $config;
     private bool $connected = false;
     private string $host;

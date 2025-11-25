@@ -71,14 +71,18 @@ class AuthClient
      */
     private function call(
         string $method,
-        array $payload,
+        mixed $payload,
         ?string $jwtToken = null,
         ?string $serviceName = null,
         ?string $serviceSecret = null
     ): array {
+        // Convert to array for project_id check
+        $payloadArray = is_array($payload) ? $payload : (array)$payload;
+        
         // Добавляем project_id если не указан в payload
-        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
-            $payload['project_id'] = $this->config->projectId;
+        if (!isset($payloadArray['project_id']) && $this->config->projectId !== null) {
+            $payloadArray['project_id'] = $this->config->projectId;
+            $payload = $payloadArray;
         }
 
         return $this->retryHandler->execute(function () use ($method, $payload, $jwtToken, $serviceName, $serviceSecret) {
