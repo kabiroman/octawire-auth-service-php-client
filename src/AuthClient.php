@@ -4,23 +4,16 @@ declare(strict_types=1);
 
 namespace Kabiroman\Octawire\AuthService\Client;
 
-use Grpc\BaseStub;
-use Grpc\Channel;
-use Grpc\ChannelCredentials;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
 use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
+use Kabiroman\Octawire\AuthService\Client\Transport\JATPClient;
 
 /**
- * Основной клиент для работы с Auth Service
- *
- * Примечание: Этот класс будет использовать сгенерированные из proto классы
- * после выполнения generate-proto.sh. Пока используем заглушки для структуры.
+ * Основной клиент для работы с Auth Service через JATP (TCP/JSON)
  */
 class AuthClient
 {
-    private ?Channel $channel = null;
-    private ?BaseStub $jwtClient = null;
-    private ?BaseStub $apiKeyClient = null;
+    private JATPClient $jatpClient;
     private KeyCache $keyCache;
     private Config $config;
     private RetryHandler $retryHandler;
@@ -38,21 +31,14 @@ class AuthClient
         $this->retryHandler = new RetryHandler($config->retry);
 
         // Валидация TLS конфигурации
-        TLSConfigHelper::validate($config->tls);
+        $tlsConfig = $config->tcp?->tls ?? $config->tls;
+        TLSConfigHelper::validate($tlsConfig);
 
-        // Создание gRPC канала
-        $credentials = TLSConfigHelper::createCredentials($config->tls);
-
+        // Создание JATP клиента
         try {
-            // Создание канала (зависит от версии gRPC extension)
-            // В реальной реализации здесь будет создание канала через gRPC extension
-            // $this->channel = new Channel($config->address, ['credentials' => $credentials]);
-            
-            // Создание клиентов (заглушка, будет заменено после генерации proto)
-            // $this->jwtClient = new \Auth\V1\JWTServiceClient($config->address, ['credentials' => $credentials]);
-            // $this->apiKeyClient = new \Auth\V1\APIKeyServiceClient($config->address, ['credentials' => $credentials]);
+            $this->jatpClient = new JATPClient($config);
         } catch (\Exception $e) {
-            throw new ConnectionException("Failed to connect to auth service: " . $e->getMessage(), 0, $e);
+            throw new ConnectionException("Failed to create JATP client: " . $e->getMessage(), 0, $e);
         }
     }
 
@@ -61,13 +47,7 @@ class AuthClient
      */
     public function close(): void
     {
-        if ($this->channel !== null) {
-            // Закрытие канала зависит от версии gRPC extension
-            // $this->channel->close();
-            $this->channel = null;
-        }
-        $this->jwtClient = null;
-        $this->apiKeyClient = null;
+        $this->jatpClient->close();
     }
 
     /**
@@ -76,6 +56,40 @@ class AuthClient
     public function getKeyCache(): KeyCache
     {
         return $this->keyCache;
+    }
+
+    /**
+     * Выполнение JATP запроса с retry логикой
+     *
+     * @param string $method Метод (например, "JWTService.IssueToken")
+     * @param array $payload Полезная нагрузка запроса
+     * @param string|null $jwtToken JWT токен для аутентификации
+     * @param string|null $serviceName Имя сервиса для межсервисной аутентификации
+     * @param string|null $serviceSecret Секрет сервиса для межсервисной аутентификации
+     * @return array Ответ от сервера
+     * @throws AuthException
+     */
+    private function call(
+        string $method,
+        array $payload,
+        ?string $jwtToken = null,
+        ?string $serviceName = null,
+        ?string $serviceSecret = null
+    ): array {
+        // Добавляем project_id если не указан в payload
+        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
+            $payload['project_id'] = $this->config->projectId;
+        }
+
+        return $this->retryHandler->execute(function () use ($method, $payload, $jwtToken, $serviceName, $serviceSecret) {
+            try {
+                $response = $this->jatpClient->call($method, $payload, $jwtToken, $serviceName, $serviceSecret);
+                return $response;
+            } catch (\Exception $e) {
+                // ErrorHandler will parse JATP error format from message: [ERROR_CODE] message
+                throw ErrorHandler::wrapError($e);
+            }
+        });
     }
 
     // JWTService методы
@@ -89,8 +103,7 @@ class AuthClient
      */
     public function issueToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        return $this->call('JWTService.IssueToken', $request);
     }
 
     /**
@@ -102,8 +115,14 @@ class AuthClient
      */
     public function issueServiceToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        // Для межсервисных токенов используем service authentication если доступно
+        $serviceName = $request['service_name'] ?? null;
+        $serviceSecret = $request['service_secret'] ?? null;
+        
+        // Удаляем из payload, так как они идут в заголовок запроса
+        unset($request['service_name'], $request['service_secret']);
+        
+        return $this->call('JWTService.IssueServiceToken', $request, null, $serviceName, $serviceSecret);
     }
 
     /**
@@ -115,8 +134,12 @@ class AuthClient
      */
     public function validateToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        // ValidateToken требует JWT токен для аутентификации
+        // Токен может быть передан в запросе или должен быть в конфиге
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('JWTService.ValidateToken', $request, $jwtToken);
     }
 
     /**
@@ -128,8 +151,7 @@ class AuthClient
      */
     public function refreshToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        return $this->call('JWTService.RefreshToken', $request);
     }
 
     /**
@@ -141,8 +163,10 @@ class AuthClient
      */
     public function revokeToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('JWTService.RevokeToken', $request, $jwtToken);
     }
 
     /**
@@ -154,8 +178,10 @@ class AuthClient
      */
     public function parseToken(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('JWTService.ParseToken', $request, $jwtToken);
     }
 
     /**
@@ -167,8 +193,10 @@ class AuthClient
      */
     public function extractClaims(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('JWTService.ExtractClaims', $request, $jwtToken);
     }
 
     /**
@@ -180,8 +208,10 @@ class AuthClient
      */
     public function validateBatch(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('JWTService.ValidateBatch', $request, $jwtToken);
     }
 
     /**
@@ -193,9 +223,29 @@ class AuthClient
      */
     public function getPublicKey(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        // Логика кэширования будет аналогична Go версии
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $projectId = $request['project_id'] ?? $this->config->projectId ?? '';
+        
+        // Проверяем кэш
+        if ($projectId !== null && $this->keyCache !== null) {
+            $cached = $this->keyCache->get($projectId);
+            if ($cached !== null) {
+                // Проверяем cache_until
+                $cacheUntil = $cached['cache_until'] ?? 0;
+                if ($cacheUntil > time()) {
+                    return $cached;
+                }
+            }
+        }
+
+        // Запрашиваем у сервера
+        $response = $this->call('JWTService.GetPublicKey', $request);
+
+        // Кэшируем результат
+        if ($projectId !== null && $this->keyCache !== null && isset($response['cache_until'])) {
+            $this->keyCache->set($projectId, $response, $response['cache_until'] - time());
+        }
+
+        return $response;
     }
 
     /**
@@ -206,8 +256,7 @@ class AuthClient
      */
     public function healthCheck(): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        return $this->call('JWTService.HealthCheck', []);
     }
 
     // APIKeyService методы
@@ -221,8 +270,10 @@ class AuthClient
      */
     public function createAPIKey(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('APIKeyService.CreateAPIKey', $request, $jwtToken);
     }
 
     /**
@@ -234,8 +285,10 @@ class AuthClient
      */
     public function validateAPIKey(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('APIKeyService.ValidateAPIKey', $request, $jwtToken);
     }
 
     /**
@@ -247,8 +300,10 @@ class AuthClient
      */
     public function revokeAPIKey(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('APIKeyService.RevokeAPIKey', $request, $jwtToken);
     }
 
     /**
@@ -260,29 +315,9 @@ class AuthClient
      */
     public function listAPIKeys(array $request): array
     {
-        // TODO: Реализовать после генерации proto классов
-        throw new \RuntimeException("Not implemented yet - requires proto generation");
-    }
-
-    /**
-     * Создание контекста с метаданными
-     */
-    private function createContext(?string $projectId = null): array
-    {
-        $metadata = [];
-
-        // Добавляем project_id
-        $projectId = $projectId ?? $this->config->projectId;
-        if ($projectId !== null) {
-            $metadata['project-id'] = [$projectId];
-        }
-
-        // Добавляем API ключ
-        if ($this->config->apiKey !== null) {
-            $metadata['api-key'] = [$this->config->apiKey];
-        }
-
-        return $metadata;
+        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
+        unset($request['jwt_token']);
+        
+        return $this->call('APIKeyService.ListAPIKeys', $request, $jwtToken);
     }
 }
-

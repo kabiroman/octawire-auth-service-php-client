@@ -1,15 +1,17 @@
 # PHP Client для Auth Service
 
-PHP клиент для работы с Auth Service (v0.9.1) через gRPC.
+PHP клиент для работы с Auth Service (v0.9.1) через JATP (TCP/JSON протокол).
 
 **Репозиторий:** [https://github.com/kabiroman/octawire-auth-service-php-client](https://github.com/kabiroman/octawire-auth-service-php-client)
 
 ## Требования
 
 - **PHP 8.1+** (минимальная версия, обязательное требование)
-- gRPC extension для PHP
+- **ext-json** (стандартное расширение PHP)
+- **ext-sockets** (стандартное расширение PHP)
 - Composer
-- protoc и grpc_php_plugin (для генерации proto классов)
+
+> **Важно:** Клиент использует TCP/JSON транспорт (JATP протокол), **не требует gRPC extension**.
 
 ## Установка
 
@@ -39,20 +41,7 @@ make docker-generate
 composer require kabiroman/octawire-auth-service-php-client
 ```
 
-## Генерация proto классов
-
-Перед использованием клиента необходимо сгенерировать PHP классы из proto файлов:
-
-```bash
-# Убедитесь, что установлены protoc и grpc_php_plugin
-# Затем выполните:
-make generate-proto
-
-# Или напрямую:
-./generate-proto.sh
-```
-
-Сгенерированные классы будут находиться в `src/Generated/`.
+> **Примечание:** Генерация proto классов больше не требуется, так как клиент использует TCP/JSON транспорт и работает напрямую с JSON.
 
 ## Быстрый старт
 
@@ -64,9 +53,10 @@ use Kabiroman\Octawire\AuthService\Client\AuthClient;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// Создаем конфигурацию
+// Создаем конфигурацию для TCP (JATP)
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052', // TCP port (по умолчанию 50052)
     'project_id' => 'your-project-id',
 ]);
 
@@ -81,7 +71,7 @@ $response = $client->issueToken([
     'refresh_token_ttl' => 86400,
 ]);
 
-echo "Access Token: " . $response->getAccessToken() . "\n";
+echo "Access Token: " . ($response['access_token'] ?? 'N/A') . "\n";
 ```
 
 ## Конфигурация
@@ -90,24 +80,31 @@ echo "Access Token: " . $response->getAccessToken() . "\n";
 
 ```php
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052', // TCP port
     'project_id' => 'default-project-id',
-    'api_key' => 'your-api-key', // Опционально
+    'api_key' => 'your-api-key', // Опционально (для JWT аутентификации)
 ]);
 ```
 
-### TLS/mTLS конфигурация
+### TCP конфигурация с TLS/mTLS
 
 ```php
 $config = new Config([
-    'address' => 'auth-service.example.com:50051',
-    'tls' => [
-        'enabled' => true,
-        'ca_file' => '/path/to/ca.crt',
-        'cert_file' => '/path/to/client.crt', // Для mTLS
-        'key_file' => '/path/to/client.key', // Для mTLS
-        'server_name' => 'auth-service.example.com',
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => true,
+            'ca_file' => '/path/to/ca.crt',
+            'cert_file' => '/path/to/client.crt', // Для mTLS
+            'key_file' => '/path/to/client.key', // Для mTLS
+            'server_name' => 'auth-service.example.com',
+        ],
+        'persistent' => true, // Переиспользование соединений
     ],
+    'project_id' => 'default-project-id',
 ]);
 ```
 
@@ -115,7 +112,8 @@ $config = new Config([
 
 ```php
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052',
     'retry' => [
         'max_attempts' => 3,
         'initial_backoff' => 0.1, // секунды
@@ -128,7 +126,8 @@ $config = new Config([
 
 ```php
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052',
     'key_cache' => [
         'ttl' => 3600, // секунды
         'max_size' => 100, // Максимальное количество проектов в кэше
@@ -267,7 +266,7 @@ $keyCache->cleanupExpired();
 
 ## Retry логика
 
-Клиент автоматически повторяет запросы при временных ошибках (Unavailable, DeadlineExceeded, ResourceExhausted) с экспоненциальным backoff и jitter.
+Клиент автоматически повторяет запросы при временных ошибках (connection errors, timeouts, ERROR_INTERNAL) с экспоненциальным backoff и jitter.
 
 Настройки retry:
 
@@ -316,7 +315,8 @@ try {
 ```php
 // Дефолтный проект из конфигурации
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052',
     'project_id' => 'default-project-id',
 ]);
 $client = new AuthClient($config);
@@ -339,6 +339,7 @@ $response = $client->issueToken([
 Полные примеры использования находятся в директории `examples/`:
 
 - `examples/basic.php` - базовое использование
+- `examples/tcp.php` - полный пример использования TCP/JATP транспорта
 - `examples/tls.php` - использование с TLS/mTLS
 - `examples/caching.php` - демонстрация кэширования ключей и graceful ротации
 - `examples/multiproject.php` - работа с несколькими проектами
@@ -358,12 +359,16 @@ vendor/bin/phpunit
 
 ## Особенности реализации
 
+- **TCP/JSON транспорт** - использует стандартные PHP расширения (sockets, json), не требует gRPC
+- **JATP протокол** - JSON-over-TCP с newline-delimited форматом
 - **PHP 8.1+** - использование типизированных свойств и возвращаемых значений
 - **Readonly свойства** - где возможно (PHP 8.2+)
 - **PSR-4 автозагрузка** - стандартная структура namespace
+- **Persistent connections** - переиспользование TCP соединений для производительности
 - **In-memory кэш** - для PHP-FPM (локальный кэш на каждый процесс)
 - **Redis кэш** - опционально, для долгоживущих процессов
-- **Обработка ошибок** - через исключения (try/catch)
+- **Обработка ошибок** - через исключения (try/catch) с маппингом JATP error codes
+- **Retry логика** - автоматический retry с exponential backoff для временных ошибок
 
 ## Лицензия
 

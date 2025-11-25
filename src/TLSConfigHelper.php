@@ -4,86 +4,63 @@ declare(strict_types=1);
 
 namespace Kabiroman\Octawire\AuthService\Client;
 
-use Grpc\ChannelCredentials;
-use Grpc\ChannelCredentialsInterface;
 use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
 
 /**
- * Утилиты для работы с TLS/mTLS конфигурацией
+ * Утилиты для работы с TLS/mTLS конфигурацией для TCP streams
  */
 final class TLSConfigHelper
 {
     /**
-     * Создание gRPC credentials из конфигурации TLS
+     * Создание stream context для TCP с TLS
+     *
+     * @param TLSConfig|null $tlsConfig Конфигурация TLS
+     * @return resource|null Stream context или null если TLS отключен
      */
-    public static function createCredentials(?TLSConfig $tlsConfig): ChannelCredentialsInterface
+    public static function createStreamContext(?TLSConfig $tlsConfig)
     {
         if ($tlsConfig === null || !$tlsConfig->enabled) {
-            return ChannelCredentials::createInsecure();
+            return null;
         }
 
-        $options = [];
+        // Валидация конфигурации
+        self::validate($tlsConfig);
 
-        // Загрузка CA сертификата
+        $options = [
+            'ssl' => [
+                'verify_peer' => $tlsConfig->caFile !== null,
+                'verify_peer_name' => $tlsConfig->serverName !== null,
+                'allow_self_signed' => false,
+            ],
+        ];
+
+        // CA file for server verification
         if ($tlsConfig->caFile !== null) {
-            if (!file_exists($tlsConfig->caFile)) {
-                throw new ConnectionException("CA certificate file not found: {$tlsConfig->caFile}");
-            }
-            $caCert = file_get_contents($tlsConfig->caFile);
-            if ($caCert === false) {
-                throw new ConnectionException("Failed to read CA certificate file: {$tlsConfig->caFile}");
-            }
-            $options['grpc.ssl_target_name_override'] = $tlsConfig->serverName ?? '';
+            $options['ssl']['cafile'] = $tlsConfig->caFile;
         }
 
-        // Загрузка клиентского сертификата и ключа (для mTLS)
-        if ($tlsConfig->certFile !== null && $tlsConfig->keyFile !== null) {
-            if (!file_exists($tlsConfig->certFile)) {
-                throw new ConnectionException("Client certificate file not found: {$tlsConfig->certFile}");
-            }
-            if (!file_exists($tlsConfig->keyFile)) {
-                throw new ConnectionException("Client key file not found: {$tlsConfig->keyFile}");
-            }
-
-            $clientCert = file_get_contents($tlsConfig->certFile);
-            $clientKey = file_get_contents($tlsConfig->keyFile);
-
-            if ($clientCert === false) {
-                throw new ConnectionException("Failed to read client certificate file: {$tlsConfig->certFile}");
-            }
-            if ($clientKey === false) {
-                throw new ConnectionException("Failed to read client key file: {$tlsConfig->keyFile}");
-            }
-
-            // Для mTLS нужно передать сертификат и ключ
-            // gRPC PHP extension использует другой подход
-            $options['credentials'] = [
-                'cert' => $clientCert,
-                'key' => $clientKey,
-            ];
+        // Client certificate for mTLS
+        if ($tlsConfig->certFile !== null) {
+            $options['ssl']['local_cert'] = $tlsConfig->certFile;
         }
 
-        // Server Name Indication (SNI)
+        if ($tlsConfig->keyFile !== null) {
+            $options['ssl']['local_pk'] = $tlsConfig->keyFile;
+        }
+
+        // Server name for SNI
         if ($tlsConfig->serverName !== null) {
-            $options['grpc.ssl_target_name_override'] = $tlsConfig->serverName;
+            $options['ssl']['peer_name'] = $tlsConfig->serverName;
         }
 
-        // Создание credentials
-        if (!empty($options)) {
-            // Для PHP gRPC extension используется другой API
-            // В зависимости от версии extension может отличаться
-            try {
-                return ChannelCredentials::createSsl($tlsConfig->caFile);
-            } catch (\Exception $e) {
-                throw new ConnectionException("Failed to create TLS credentials: " . $e->getMessage());
-            }
-        }
-
-        return ChannelCredentials::createSsl();
+        return stream_context_create($options);
     }
 
     /**
      * Валидация конфигурации TLS
+     *
+     * @param TLSConfig|null $tlsConfig Конфигурация TLS
+     * @throws ConnectionException
      */
     public static function validate(?TLSConfig $tlsConfig): void
     {
@@ -108,6 +85,11 @@ final class TLSConfigHelper
         if ($tlsConfig->keyFile !== null && !is_readable($tlsConfig->keyFile)) {
             throw new ConnectionException("Client key file is not readable: {$tlsConfig->keyFile}");
         }
+
+        // Проверка согласованности mTLS
+        if (($tlsConfig->certFile !== null && $tlsConfig->keyFile === null) ||
+            ($tlsConfig->certFile === null && $tlsConfig->keyFile !== null)) {
+            throw new ConnectionException("Both cert_file and key_file must be provided for mTLS");
+        }
     }
 }
-

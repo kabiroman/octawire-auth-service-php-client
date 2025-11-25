@@ -8,9 +8,10 @@ use Kabiroman\Octawire\AuthService\Client\Config;
 use Kabiroman\Octawire\AuthService\Client\AuthClient;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
 
-// Создаем конфигурацию
+// Создаем конфигурацию для TCP (JATP)
 $config = new Config([
-    'address' => 'localhost:50051',
+    'transport' => 'tcp',
+    'address' => 'localhost:50052', // TCP port
     'project_id' => 'default-project-id',
 ]);
 

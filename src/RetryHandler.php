@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Kabiroman\Octawire\AuthService\Client;
 
-use Grpc\Status;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
 use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
 
@@ -67,22 +66,42 @@ class RetryHandler
      */
     private function isRetryable(\Exception $e): bool
     {
-        // Проверяем gRPC статус код
-        if ($e instanceof \Grpc\RpcException) {
-            $code = $e->getCode();
-            return in_array($code, [
-                Status::UNAVAILABLE,
-                Status::DEADLINE_EXCEEDED,
-                Status::RESOURCE_EXHAUSTED,
+        // Проверяем по сообщению об ошибке
+        $message = strtolower($e->getMessage());
+        
+        // TCP connection errors (retryable)
+        if (str_contains($message, 'connection') ||
+            str_contains($message, 'connect') ||
+            str_contains($message, 'timeout') ||
+            str_contains($message, 'closed') ||
+            str_contains($message, 'unreachable') ||
+            str_contains($message, 'refused')) {
+            return true;
+        }
+
+        // JATP error codes (check in message format [ERROR_CODE])
+        if (preg_match('/^\[([^\]]+)\]/', $message, $matches)) {
+            $errorCode = $matches[1];
+            // Retryable JATP errors
+            return in_array($errorCode, [
+                'ERROR_INTERNAL',
+                'ERROR_RATE_LIMIT_EXCEEDED', // May be temporary
             ], true);
         }
 
-        // Проверяем по сообщению об ошибке (fallback)
-        $message = strtolower($e->getMessage());
-        return str_contains($message, 'unavailable') ||
-               str_contains($message, 'deadline') ||
-               str_contains($message, 'timeout') ||
-               str_contains($message, 'connection');
+        // Check error code for connection-related errors
+        $code = $e->getCode();
+        if ($e instanceof ConnectionException) {
+            return true;
+        }
+
+        // Socket errors (errno-based)
+        // ECONNREFUSED (111), ETIMEDOUT (110), ECONNRESET (104)
+        if (in_array($code, [111, 110, 104], true)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
