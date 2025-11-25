@@ -7,6 +7,10 @@ namespace Kabiroman\Octawire\AuthService\Client;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
 use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
 use Kabiroman\Octawire\AuthService\Client\Transport\JATPClient;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT as JWTRequest;
+use Kabiroman\Octawire\AuthService\Client\Response\JWT as JWTResponse;
+use Kabiroman\Octawire\AuthService\Client\Request\APIKey as APIKeyRequest;
+use Kabiroman\Octawire\AuthService\Client\Response\APIKey as APIKeyResponse;
 
 /**
  * Основной клиент для работы с Auth Service через JATP (TCP/JSON)
@@ -59,30 +63,38 @@ class AuthClient
     }
 
     /**
-     * Выполнение JATP запроса с retry логикой
+     * Выполнение JATP запроса с retry логикой (внутренний метод)
      *
      * @param string $method Метод (например, "JWTService.IssueToken")
-     * @param array $payload Полезная нагрузка запроса
+     * @param array|\stdClass $payload Полезная нагрузка запроса
      * @param string|null $jwtToken JWT токен для аутентификации
      * @param string|null $serviceName Имя сервиса для межсервисной аутентификации
      * @param string|null $serviceSecret Секрет сервиса для межсервисной аутентификации
      * @return array Ответ от сервера
      * @throws AuthException
      */
-    private function call(
+    private function callRaw(
         string $method,
-        mixed $payload,
+        array|\stdClass $payload,
         ?string $jwtToken = null,
         ?string $serviceName = null,
         ?string $serviceSecret = null
     ): array {
-        // Convert to array for project_id check
-        $payloadArray = is_array($payload) ? $payload : (array)$payload;
-        
-        // Добавляем project_id если не указан в payload
-        if (!isset($payloadArray['project_id']) && $this->config->projectId !== null) {
-            $payloadArray['project_id'] = $this->config->projectId;
-            $payload = $payloadArray;
+        // Методы, которые принимают project_id в payload (согласно JATP_METHODS_1.0.json)
+        $methodsWithProjectId = [
+            'JWTService.IssueToken',
+            'JWTService.IssueServiceToken',
+            'JWTService.GetPublicKey',
+            'APIKeyService.CreateAPIKey',
+            'APIKeyService.RevokeAPIKey',
+            'APIKeyService.ListAPIKeys',
+        ];
+
+        // Добавляем project_id только для методов, которые его принимают
+        if (in_array($method, $methodsWithProjectId, true)) {
+            if (is_array($payload) && !isset($payload['project_id']) && $this->config->projectId !== null) {
+                $payload['project_id'] = $this->config->projectId;
+            }
         }
 
         return $this->retryHandler->execute(function () use ($method, $payload, $jwtToken, $serviceName, $serviceSecret) {
@@ -90,238 +102,230 @@ class AuthClient
                 $response = $this->jatpClient->call($method, $payload, $jwtToken, $serviceName, $serviceSecret);
                 return $response;
             } catch (\Exception $e) {
-                // ErrorHandler will parse JATP error format from message: [ERROR_CODE] message
                 throw ErrorHandler::wrapError($e);
             }
         });
     }
 
-    // JWTService методы
+    // ============================================================================
+    // JWT Service методы (типизированные согласно JATP_METHODS_1.0.json)
+    // ============================================================================
 
     /**
      * Выдача нового JWT токена (access + refresh)
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с токенами
-     * @throws AuthException
      */
-    public function issueToken(array $request): array
+    public function issueToken(JWTRequest\IssueTokenRequest $request): JWTResponse\IssueTokenResponse
     {
-        return $this->call('JWTService.IssueToken', $request);
+        $payload = $request->toArray();
+        
+        // Добавляем project_id из конфига если не указан
+        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
+            $payload['project_id'] = $this->config->projectId;
+        }
+        
+        $response = $this->callRaw('JWTService.IssueToken', $payload);
+        return JWTResponse\IssueTokenResponse::fromArray($response);
     }
 
     /**
      * Выдача межсервисного JWT токена
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с токеном
-     * @throws AuthException
      */
-    public function issueServiceToken(array $request): array
-    {
-        // Для межсервисных токенов используем service authentication если доступно
-        $serviceName = $request['service_name'] ?? null;
-        $serviceSecret = $request['service_secret'] ?? null;
+    public function issueServiceToken(
+        JWTRequest\IssueServiceTokenRequest $request,
+        ?string $serviceSecret = null
+    ): JWTResponse\IssueTokenResponse {
+        $payload = $request->toArray();
         
-        // Удаляем из payload, так как они идут в заголовок запроса
-        unset($request['service_name'], $request['service_secret']);
+        // Добавляем project_id из конфига если не указан
+        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
+            $payload['project_id'] = $this->config->projectId;
+        }
         
-        return $this->call('JWTService.IssueServiceToken', $request, null, $serviceName, $serviceSecret);
+        $response = $this->callRaw(
+            'JWTService.IssueServiceToken',
+            $payload,
+            null,
+            $request->sourceService,
+            $serviceSecret
+        );
+        
+        return JWTResponse\IssueTokenResponse::fromArray($response);
     }
 
     /**
      * Валидация токена
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с результатом валидации
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из токена
      */
-    public function validateToken(array $request): array
-    {
-        // ValidateToken требует JWT токен для аутентификации
-        // Токен может быть передан в запросе или должен быть в конфиге
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function validateToken(
+        JWTRequest\ValidateTokenRequest $request,
+        ?string $jwtToken = null
+    ): JWTResponse\ValidateTokenResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('JWTService.ValidateToken', $request, $jwtToken);
+        $response = $this->callRaw('JWTService.ValidateToken', $payload, $jwtToken);
+        return JWTResponse\ValidateTokenResponse::fromArray($response);
     }
 
     /**
      * Обновление токена
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с новым токеном
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из refresh token
      */
-    public function refreshToken(array $request): array
+    public function refreshToken(JWTRequest\RefreshTokenRequest $request): JWTResponse\RefreshTokenResponse
     {
-        return $this->call('JWTService.RefreshToken', $request);
+        $payload = $request->toArray();
+        
+        $response = $this->callRaw('JWTService.RefreshToken', $payload);
+        return JWTResponse\RefreshTokenResponse::fromArray($response);
     }
 
     /**
      * Отзыв токена
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с результатом отзыва
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из токена
      */
-    public function revokeToken(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function revokeToken(
+        JWTRequest\RevokeTokenRequest $request,
+        ?string $jwtToken = null
+    ): JWTResponse\RevokeTokenResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('JWTService.RevokeToken', $request, $jwtToken);
+        $response = $this->callRaw('JWTService.RevokeToken', $payload, $jwtToken);
+        return JWTResponse\RevokeTokenResponse::fromArray($response);
     }
 
     /**
      * Парсинг токена без валидации
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с claims
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из токена
      */
-    public function parseToken(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function parseToken(
+        JWTRequest\ParseTokenRequest $request,
+        ?string $jwtToken = null
+    ): JWTResponse\ParseTokenResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('JWTService.ParseToken', $request, $jwtToken);
+        $response = $this->callRaw('JWTService.ParseToken', $payload, $jwtToken);
+        return JWTResponse\ParseTokenResponse::fromArray($response);
     }
 
     /**
      * Извлечение claims из токена
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с claims
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из токена
      */
-    public function extractClaims(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function extractClaims(
+        JWTRequest\ExtractClaimsRequest $request,
+        ?string $jwtToken = null
+    ): JWTResponse\ExtractClaimsResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('JWTService.ExtractClaims', $request, $jwtToken);
+        $response = $this->callRaw('JWTService.ExtractClaims', $payload, $jwtToken);
+        return JWTResponse\ExtractClaimsResponse::fromArray($response);
     }
 
     /**
      * Пакетная валидация токенов
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с результатами валидации
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из токенов
      */
-    public function validateBatch(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function validateBatch(
+        JWTRequest\ValidateBatchRequest $request,
+        ?string $jwtToken = null
+    ): JWTResponse\ValidateBatchResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('JWTService.ValidateBatch', $request, $jwtToken);
+        $response = $this->callRaw('JWTService.ValidateBatch', $payload, $jwtToken);
+        return JWTResponse\ValidateBatchResponse::fromArray($response);
     }
 
     /**
      * Получение публичного ключа (с кэшированием)
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с публичным ключом
-     * @throws AuthException
      */
-    public function getPublicKey(array $request): array
+    public function getPublicKey(JWTRequest\GetPublicKeyRequest $request): JWTResponse\GetPublicKeyResponse
     {
-        $projectId = $request['project_id'] ?? $this->config->projectId ?? '';
-        
-        // Проверяем кэш
-        if ($projectId !== null && $this->keyCache !== null) {
-            $cached = $this->keyCache->get($projectId);
-            if ($cached !== null) {
-                // Проверяем cache_until
-                $cacheUntil = $cached['cache_until'] ?? 0;
-                if ($cacheUntil > time()) {
-                    return $cached;
-                }
-            }
-        }
-
         // Запрашиваем у сервера
-        $response = $this->call('JWTService.GetPublicKey', $request);
+        $payload = $request->toArray();
+        $response = $this->callRaw('JWTService.GetPublicKey', $payload);
+        $result = JWTResponse\GetPublicKeyResponse::fromArray($response);
 
-        // Кэшируем результат
-        if ($projectId !== null && $this->keyCache !== null && isset($response['cache_until'])) {
-            $this->keyCache->set($projectId, $response, $response['cache_until'] - time());
+        // Кэшируем все активные ключи для использования в других местах
+        if ($this->keyCache !== null && !empty($result->activeKeys)) {
+            $this->keyCache->setAllActive($request->projectId, $result->activeKeys, $result->cacheUntil);
         }
 
-        return $response;
+        return $result;
     }
 
     /**
      * Проверка здоровья сервиса
-     *
-     * @return array Ответ с информацией о здоровье
-     * @throws AuthException
+     * Публичный метод, не требует аутентификации
      */
-    public function healthCheck(): array
+    public function healthCheck(JWTRequest\HealthCheckRequest $request = new JWTRequest\HealthCheckRequest()): JWTResponse\HealthCheckResponse
     {
-        return $this->call('JWTService.HealthCheck', []);
+        $payload = $request->toArray();
+        $response = $this->callRaw('JWTService.HealthCheck', $payload);
+        return JWTResponse\HealthCheckResponse::fromArray($response);
     }
 
-    // APIKeyService методы
+    // ============================================================================
+    // API Key Service методы (типизированные согласно JATP_METHODS_1.0.json)
+    // ============================================================================
 
     /**
      * Создание нового API ключа
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с созданным API ключом
-     * @throws AuthException
      */
-    public function createAPIKey(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function createAPIKey(
+        APIKeyRequest\CreateAPIKeyRequest $request,
+        ?string $jwtToken = null
+    ): APIKeyResponse\CreateAPIKeyResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('APIKeyService.CreateAPIKey', $request, $jwtToken);
+        $response = $this->callRaw('APIKeyService.CreateAPIKey', $payload, $jwtToken);
+        return APIKeyResponse\CreateAPIKeyResponse::fromArray($response);
     }
 
     /**
      * Валидация API ключа
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с результатом валидации
-     * @throws AuthException
+     * НЕ принимает project_id - определяется автоматически из ключа
      */
-    public function validateAPIKey(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function validateAPIKey(
+        APIKeyRequest\ValidateAPIKeyRequest $request,
+        ?string $jwtToken = null
+    ): APIKeyResponse\ValidateAPIKeyResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('APIKeyService.ValidateAPIKey', $request, $jwtToken);
+        $response = $this->callRaw('APIKeyService.ValidateAPIKey', $payload, $jwtToken);
+        return APIKeyResponse\ValidateAPIKeyResponse::fromArray($response);
     }
 
     /**
      * Отзыв API ключа
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ с результатом отзыва
-     * @throws AuthException
      */
-    public function revokeAPIKey(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function revokeAPIKey(
+        APIKeyRequest\RevokeAPIKeyRequest $request,
+        ?string $jwtToken = null
+    ): APIKeyResponse\RevokeAPIKeyResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('APIKeyService.RevokeAPIKey', $request, $jwtToken);
+        $response = $this->callRaw('APIKeyService.RevokeAPIKey', $payload, $jwtToken);
+        return APIKeyResponse\RevokeAPIKeyResponse::fromArray($response);
     }
 
     /**
      * Список API ключей
-     *
-     * @param array $request Параметры запроса
-     * @return array Ответ со списком API ключей
-     * @throws AuthException
      */
-    public function listAPIKeys(array $request): array
-    {
-        $jwtToken = $request['jwt_token'] ?? $this->config->apiKey;
-        unset($request['jwt_token']);
+    public function listAPIKeys(
+        APIKeyRequest\ListAPIKeysRequest $request,
+        ?string $jwtToken = null
+    ): APIKeyResponse\ListAPIKeysResponse {
+        $jwtToken ??= $this->config->apiKey;
+        $payload = $request->toArray();
         
-        return $this->call('APIKeyService.ListAPIKeys', $request, $jwtToken);
+        $response = $this->callRaw('APIKeyService.ListAPIKeys', $payload, $jwtToken);
+        return APIKeyResponse\ListAPIKeysResponse::fromArray($response);
     }
 }

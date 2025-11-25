@@ -31,10 +31,10 @@ class PublicKeyInfo
     public static function fromArray(array $data): self
     {
         return new self(
-            keyId: $data['key_id'] ?? '',
-            publicKeyPem: $data['public_key_pem'] ?? '',
-            isPrimary: $data['is_primary'] ?? false,
-            expiresAt: $data['expires_at'] ?? 0
+            keyId: $data['key_id'] ?? $data['keyId'] ?? '',
+            publicKeyPem: $data['public_key_pem'] ?? $data['publicKeyPem'] ?? '',
+            isPrimary: (bool)($data['is_primary'] ?? $data['isPrimary'] ?? false),
+            expiresAt: (int)($data['expires_at'] ?? $data['expiresAt'] ?? 0)
         );
     }
 

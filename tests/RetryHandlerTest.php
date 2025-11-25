@@ -6,6 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Tests;
 
 use Kabiroman\Octawire\AuthService\Client\RetryConfig;
 use Kabiroman\Octawire\AuthService\Client\RetryHandler;
+use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
 use PHPUnit\Framework\TestCase;
 
 class RetryHandlerTest extends TestCase
@@ -36,8 +37,8 @@ class RetryHandlerTest extends TestCase
         ]));
 
         $attempts = 0;
-        // Используем обычное исключение с сообщением, которое будет распознано как retryable
-        $exception = new \RuntimeException('Service unavailable');
+        // Используем ConnectionException, которое распознается как retryable
+        $exception = new ConnectionException('Connection timeout');
 
         try {
             $handler->execute(function () use (&$attempts, $exception) {
@@ -49,6 +50,7 @@ class RetryHandlerTest extends TestCase
             });
         } catch (\Exception $e) {
             // Если все попытки исчерпаны, должно быть исключение
+            $this->fail('Should have succeeded on attempt 3');
         }
 
         $this->assertEquals(3, $attempts);
@@ -62,9 +64,9 @@ class RetryHandlerTest extends TestCase
         ]));
 
         $attempts = 0;
-        $exception = new \RuntimeException('Connection timeout');
+        $exception = new ConnectionException('Connection timeout');
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(ConnectionException::class);
         $handler->execute(function () use (&$attempts, $exception) {
             $attempts++;
             throw $exception;

@@ -41,14 +41,33 @@ class TokenClaims
      */
     public static function fromArray(array $data): self
     {
+        // Поддержка как camelCase (из protobuf), так и snake_case (из JSON)
+        $userId = $data['user_id'] ?? $data['userId'] ?? $data['sub'] ?? '';
+        $tokenType = $data['token_type'] ?? $data['tokenType'] ?? '';
+        $issuedAt = (int)($data['issued_at'] ?? $data['issuedAt'] ?? $data['iat'] ?? 0);
+        $expiresAt = (int)($data['expires_at'] ?? $data['expiresAt'] ?? $data['exp'] ?? 0);
+        $issuer = $data['issuer'] ?? $data['iss'] ?? '';
+        $audience = $data['audience'] ?? $data['aud'] ?? '';
+        
+        // Извлекаем кастомные claims (все кроме стандартных)
+        $standardKeys = ['user_id', 'userId', 'sub', 'token_type', 'tokenType', 
+                        'issued_at', 'issuedAt', 'iat', 'expires_at', 'expiresAt', 'exp',
+                        'issuer', 'iss', 'audience', 'aud', 'custom_claims', 'jwt_id', 'jti'];
+        $customClaims = [];
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $standardKeys, true)) {
+                $customClaims[$key] = $value;
+            }
+        }
+        
         return new self(
-            userId: $data['user_id'] ?? '',
-            tokenType: $data['token_type'] ?? '',
-            issuedAt: $data['issued_at'] ?? 0,
-            expiresAt: $data['expires_at'] ?? 0,
-            issuer: $data['issuer'] ?? '',
-            audience: $data['audience'] ?? '',
-            customClaims: $data['custom_claims'] ?? []
+            userId: $userId,
+            tokenType: $tokenType,
+            issuedAt: $issuedAt,
+            expiresAt: $expiresAt,
+            issuer: $issuer,
+            audience: $audience,
+            customClaims: $customClaims
         );
     }
 
