@@ -49,14 +49,22 @@ class TokenClaims
         $issuer = $data['issuer'] ?? $data['iss'] ?? '';
         $audience = $data['audience'] ?? $data['aud'] ?? '';
         
-        // Извлекаем кастомные claims (все кроме стандартных)
-        $standardKeys = ['user_id', 'userId', 'sub', 'token_type', 'tokenType', 
-                        'issued_at', 'issuedAt', 'iat', 'expires_at', 'expiresAt', 'exp',
-                        'issuer', 'iss', 'audience', 'aud', 'custom_claims', 'jwt_id', 'jti'];
+        // Извлекаем кастомные claims
+        // Если есть customClaims в данных - используем их, иначе извлекаем все нестандартные ключи
         $customClaims = [];
-        foreach ($data as $key => $value) {
-            if (!in_array($key, $standardKeys, true)) {
-                $customClaims[$key] = $value;
+        if (isset($data['customClaims']) && is_array($data['customClaims'])) {
+            $customClaims = $data['customClaims'];
+        } elseif (isset($data['custom_claims']) && is_array($data['custom_claims'])) {
+            $customClaims = $data['custom_claims'];
+        } else {
+            // Извлекаем кастомные claims (все кроме стандартных)
+            $standardKeys = ['user_id', 'userId', 'sub', 'token_type', 'tokenType', 
+                            'issued_at', 'issuedAt', 'iat', 'expires_at', 'expiresAt', 'exp',
+                            'issuer', 'iss', 'audience', 'aud', 'custom_claims', 'customClaims', 'jwt_id', 'jti', 'jwtId'];
+            foreach ($data as $key => $value) {
+                if (!in_array($key, $standardKeys, true)) {
+                    $customClaims[$key] = $value;
+                }
             }
         }
         

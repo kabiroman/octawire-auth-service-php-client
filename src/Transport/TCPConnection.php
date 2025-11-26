@@ -52,14 +52,17 @@ class TCPConnection
             return; // Already connected
         }
 
-        $address = sprintf('tcp://%s:%d', $this->host, $this->port);
+        $tcpConfig = $this->config->tcp;
+        $scheme = 'tcp';
         $context = null;
 
         // Create TLS context if enabled
-        $tcpConfig = $this->config->tcp;
         if ($tcpConfig !== null && $tcpConfig->tls !== null && $tcpConfig->tls->enabled) {
+            $scheme = 'tls';
             $context = $this->createTLSContext($tcpConfig->tls);
         }
+
+        $address = sprintf('%s://%s:%d', $scheme, $this->host, $this->port);
 
         $connectTimeout = $this->config->timeout?->connect ?? 10.0;
         
