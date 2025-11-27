@@ -4,6 +4,8 @@ PHP клиент для работы с Auth Service (v0.9.1) через JATP (T
 
 **Репозиторий:** [https://github.com/kabiroman/octawire-auth-service-php-client](https://github.com/kabiroman/octawire-auth-service-php-client)
 
+**Соответствие спецификации:** Клиент полностью соответствует спецификации JATP_METHODS_1.0.json и обрабатывает все коды ошибок, определенные в спецификации.
+
 ## Требования
 
 - **PHP 8.1+** (минимальная версия, обязательное требование)
@@ -226,6 +228,115 @@ $response = $client->revokeAPIKey([
 ]);
 ```
 
+## Service Authentication
+
+Service Authentication используется для межсервисной аутентификации при вызове `IssueServiceToken`. Это дополнительный слой защиты поверх TLS/mTLS.
+
+### Настройка
+
+Service secret можно указать в конфигурации или передать при вызове метода:
+
+```php
+// Вариант 1: В конфигурации
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => true,
+            'ca_file' => '/path/to/ca.crt',
+        ],
+    ],
+    'project_id' => 'default-project-id',
+    'service_secret' => 'identity-service-secret-abc123def456', // Опционально
+]);
+
+// Вариант 2: При вызове метода
+$request = new IssueServiceTokenRequest(
+    sourceService: 'identity-service',
+    targetService: 'gateway-service',
+    ttl: 3600,
+);
+$response = $client->issueServiceToken($request, 'identity-service-secret-abc123def456');
+```
+
+### Использование
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
+
+try {
+    $request = new IssueServiceTokenRequest(
+        sourceService: 'identity-service',
+        targetService: 'gateway-service',
+        userId: 'service-user', // Опционально
+        claims: ['service' => 'identity-service'], // Опционально
+        ttl: 3600, // Опционально
+    );
+    
+    // Service secret можно передать как параметр или использовать из конфигурации
+    $response = $client->issueServiceToken($request, 'identity-service-secret-abc123def456');
+    
+    echo "Service Token: " . substr($response->accessToken, 0, 50) . "...\n";
+} catch (AuthException $e) {
+    // Обработка AUTH_FAILED ошибки для service authentication
+    if ($e->getErrorCode() === 'AUTH_FAILED') {
+        error_log("Invalid service credentials: " . $e->getMessage());
+        return;
+    }
+    error_log("Failed to issue service token: " . $e->getMessage());
+}
+```
+
+### Обработка ошибок
+
+При неудачной валидации service credentials сервер возвращает ошибку `AUTH_FAILED`:
+
+```php
+try {
+    $response = $client->issueServiceToken($request, $serviceSecret);
+} catch (AuthException $e) {
+    if ($e->getErrorCode() === 'AUTH_FAILED') {
+        // Неверный service_name или service_secret
+        error_log("Service authentication failed: " . $e->getMessage());
+    }
+}
+```
+
+### Безопасное хранение секретов
+
+**Важно:**
+- Не храните `service_secret` в коде или конфигурациях
+- Используйте переменные окружения и secrets manager
+- Ротируйте секреты и используйте разные значения для окружений
+- Отзывайте скомпрометированные секреты немедленно
+
+**Рекомендации:**
+```php
+// Используйте переменные окружения
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+    ],
+    'project_id' => 'default-project-id',
+    'service_secret' => $_ENV['IDENTITY_SERVICE_SECRET'] ?? null,
+]);
+```
+
+### Кейсы подключения
+
+Клиент поддерживает 4 кейса подключения согласно конфигурациям сервиса:
+
+1. **PROD + service_auth=false**: TLS обязателен (tcp.tls.enabled=true, tcp.tls.required=true)
+2. **PROD + service_auth=true**: TLS обязателен + service authentication
+3. **DEV + service_auth=false**: TLS опционален (tcp.tls.enabled=false)
+4. **DEV + service_auth=true**: TLS опционален + service authentication
+
+Примеры для каждого кейса см. в разделе [Примеры подключения](#примеры-подключения).
+
 ## Кэширование публичных ключей
 
 Клиент автоматически кэширует публичные ключи для оптимизации производительности. Кэш поддерживает **graceful key rotation** - хранение нескольких активных ключей одновременно.
@@ -334,15 +445,94 @@ $response = $client->issueToken([
 ]);
 ```
 
+## Примеры подключения
+
+Клиент поддерживает различные сценарии подключения в зависимости от окружения и настроек сервиса:
+
+### 1. PROD + service_auth=false (TLS обязателен, без service auth)
+
+```php
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => true,
+            'required' => true,
+            'ca_file' => '/path/to/ca.crt',
+            'server_name' => 'auth-service.example.com',
+        ],
+    ],
+    'project_id' => 'default-project-id',
+]);
+```
+
+### 2. PROD + service_auth=true (TLS обязателен, с service auth)
+
+```php
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => true,
+            'required' => true,
+            'ca_file' => '/path/to/ca.crt',
+            'cert_file' => '/path/to/client.crt', // для mTLS
+            'key_file' => '/path/to/client.key', // для mTLS
+            'server_name' => 'auth-service.example.com',
+        ],
+    ],
+    'project_id' => 'default-project-id',
+    'service_secret' => $_ENV['IDENTITY_SERVICE_SECRET'], // для service authentication
+]);
+```
+
+### 3. DEV + service_auth=false (TLS опционален, без service auth)
+
+```php
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'localhost',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => false, // TLS опционален в DEV
+        ],
+    ],
+    'project_id' => 'default-project-id',
+]);
+```
+
+### 4. DEV + service_auth=true (TLS опционален, с service auth)
+
+```php
+$config = new Config([
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'localhost',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => false, // TLS опционален в DEV
+        ],
+    ],
+    'project_id' => 'default-project-id',
+    'service_secret' => 'dev-service-secret-abc123', // для service authentication
+]);
+```
+
 ## Примеры
 
 Полные примеры использования находятся в директории `examples/`:
 
 - `examples/basic.php` - базовое использование
 - `examples/tcp.php` - полный пример использования TCP/JATP транспорта
-- `examples/tls.php` - использование с TLS/mTLS
+- `examples/tls.php` - использование с TLS/mTLS (обновлен для tcp.tls формата)
 - `examples/caching.php` - демонстрация кэширования ключей и graceful ротации
 - `examples/multiproject.php` - работа с несколькими проектами
+- `examples/connection-scenarios.php` - примеры для всех 4 кейсов подключения
 
 ## Тестирование
 

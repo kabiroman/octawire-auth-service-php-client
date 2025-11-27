@@ -8,17 +8,21 @@ use Kabiroman\Octawire\AuthService\Client\Config;
 use Kabiroman\Octawire\AuthService\Client\AuthClient;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
 
-// Создаем конфигурацию с TLS
+// Создаем конфигурацию с TLS (используем tcp.tls формат)
 $config = new Config([
-    'address' => 'auth-service.example.com:50051',
-    'project_id' => 'default-project-id',
-    'tls' => [
-        'enabled' => true,
-        'ca_file' => '/path/to/ca.crt',
-        'cert_file' => '/path/to/client.crt', // Для mTLS
-        'key_file' => '/path/to/client.key', // Для mTLS
-        'server_name' => 'auth-service.example.com',
+    'transport' => 'tcp',
+    'tcp' => [
+        'host' => 'auth-service.example.com',
+        'port' => 50052,
+        'tls' => [
+            'enabled' => true,
+            'ca_file' => '/path/to/ca.crt',
+            'cert_file' => '/path/to/client.crt', // Для mTLS
+            'key_file' => '/path/to/client.key', // Для mTLS
+            'server_name' => 'auth-service.example.com',
+        ],
     ],
+    'project_id' => 'default-project-id',
 ]);
 
 // Создаем клиент

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Kabiroman\Octawire\AuthService\Client\Config;
 use Kabiroman\Octawire\AuthService\Client\AuthClient;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
 
 echo "=== PHP JATP Client Example ===\n\n";
 
@@ -152,18 +153,29 @@ try {
 // Пример 6: Межсервисный токен
 echo "=== IssueServiceToken ===\n";
 try {
-    $serviceResponse = $client->issueServiceToken([
-        'user_id' => 'service-user',
-        'service_name' => 'identity-service',
-        'service_secret' => 'identity-service-secret-abc123def456',
-        'claims' => ['service' => 'identity-service'],
-        'access_token_ttl' => 3600,
-    ]);
+    $request = new IssueServiceTokenRequest(
+        sourceService: 'identity-service',
+        targetService: 'gateway-service',
+        userId: 'service-user',
+        claims: ['service' => 'identity-service'],
+        ttl: 3600,
+    );
+    
+    // Service secret передается отдельным параметром (не в payload)
+    $serviceSecret = 'identity-service-secret-abc123def456';
+    $serviceResponse = $client->issueServiceToken($request, $serviceSecret);
 
-    echo "Service Token: " . substr($serviceResponse['access_token'] ?? '', 0, 50) . "...\n";
+    echo "Service Token: " . substr($serviceResponse->accessToken, 0, 50) . "...\n";
+    echo "Expires At: " . date('Y-m-d H:i:s', $serviceResponse->accessTokenExpiresAt) . "\n";
     echo "✓ Service token issued successfully\n\n";
 } catch (AuthException $e) {
-    echo "✗ Error: " . $e->getMessage() . "\n\n";
+    // Обработка AUTH_FAILED ошибки для service authentication
+    if ($e->getErrorCode() === 'AUTH_FAILED') {
+        echo "✗ Authentication failed: Invalid service credentials\n";
+        echo "  Error: " . $e->getMessage() . "\n\n";
+    } else {
+        echo "✗ Error: " . $e->getMessage() . "\n\n";
+    }
 }
 
 // Закрываем соединение

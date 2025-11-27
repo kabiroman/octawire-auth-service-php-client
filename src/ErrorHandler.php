@@ -57,6 +57,23 @@ class ErrorHandler
             return new ConnectionException($message, $code, $err);
         }
 
+        // Попытка определить тип ошибки по содержимому сообщения
+        $lowerMessage = strtolower($message);
+        
+        if (str_contains($lowerMessage, 'expired')) {
+            return new TokenExpiredException($message, 401, $err);
+        }
+
+        if (str_contains($lowerMessage, 'revoked')) {
+            return new TokenRevokedException($message, 401, $err);
+        }
+
+        if (str_contains($lowerMessage, 'invalid') || str_contains($lowerMessage, 'malformed')) {
+            if (str_contains($lowerMessage, 'token')) {
+                return new InvalidTokenException($message, 400, $err);
+            }
+        }
+
         // По умолчанию возвращаем базовое исключение
         return new AuthException($message, $code, $err);
     }
@@ -96,11 +113,42 @@ class ErrorHandler
             case 'ERROR_UNAUTHENTICATED':
                 return new AuthException($message, 401, $previous, $errorCode, $details);
 
+            case 'AUTH_FAILED':
+                // Service authentication failed (неверный service_name или service_secret)
+                return new AuthException($message, 403, $previous, $errorCode, $details);
+
             case 'ERROR_INVALID_REQUEST':
                 // Check if it's token-related
                 if (str_contains(strtolower($message), 'token')) {
                     return new InvalidTokenException($message, 400, $previous, $details);
                 }
+                return new AuthException($message, 400, $previous, $errorCode, $details);
+
+            case 'ERROR_INVALID_TOKEN':
+                return new InvalidTokenException($message, 400, $previous, $details);
+
+            case 'ERROR_EXPIRED_TOKEN':
+                return new TokenExpiredException($message, 401, $previous, $details);
+
+            case 'ERROR_INVALID_SIGNATURE':
+                return new InvalidTokenException($message, 400, $previous, $details);
+
+            case 'ERROR_INVALID_ISSUER':
+                return new InvalidTokenException($message, 400, $previous, $details);
+
+            case 'ERROR_INVALID_AUDIENCE':
+                return new InvalidTokenException($message, 400, $previous, $details);
+
+            case 'ERROR_TOKEN_REVOKED':
+                return new TokenRevokedException($message, 401, $previous, $details);
+
+            case 'ERROR_REFRESH_TOKEN_INVALID':
+                return new InvalidTokenException($message, 400, $previous, $details);
+
+            case 'ERROR_REFRESH_TOKEN_EXPIRED':
+                return new TokenExpiredException($message, 401, $previous, $details);
+
+            case 'ERROR_INVALID_USER_ID':
                 return new AuthException($message, 400, $previous, $errorCode, $details);
 
             case 'ERROR_RATE_LIMIT_EXCEEDED':

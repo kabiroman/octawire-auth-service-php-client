@@ -25,6 +25,11 @@ class Config
     public readonly ?string $apiKey;
 
     /**
+     * Service secret для межсервисной аутентификации (опционально)
+     */
+    public readonly ?string $serviceSecret;
+
+    /**
      * Дефолтный project_id
      */
     public readonly ?string $projectId;
@@ -64,6 +69,7 @@ class Config
         $this->transport = $config['transport'] ?? 'tcp';
         $this->address = $config['address'] ?? ($this->transport === 'tcp' ? 'localhost:50052' : 'localhost:50051');
         $this->apiKey = $config['api_key'] ?? null;
+        $this->serviceSecret = $config['service_secret'] ?? null;
         $this->projectId = $config['project_id'] ?? null;
 
         // TLS конфигурация (legacy, для обратной совместимости)

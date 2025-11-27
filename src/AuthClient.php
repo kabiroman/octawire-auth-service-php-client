@@ -129,11 +129,32 @@ class AuthClient
 
     /**
      * Выдача межсервисного JWT токена
+     *
+     * @param JWTRequest\IssueServiceTokenRequest $request Запрос на выдачу токена
+     * @param string|null $serviceSecret Секрет сервиса (если не указан, используется из конфигурации)
+     * @return JWTResponse\IssueTokenResponse
+     * @throws AuthException Если serviceSecret не указан и отсутствует в конфигурации
      */
     public function issueServiceToken(
         JWTRequest\IssueServiceTokenRequest $request,
         ?string $serviceSecret = null
     ): JWTResponse\IssueTokenResponse {
+        // Валидация: sourceService обязателен
+        if (empty($request->sourceService)) {
+            throw new AuthException('sourceService is required for IssueServiceToken', 400);
+        }
+
+        // Используем serviceSecret из параметра или из конфигурации
+        $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
+        
+        // Валидация: serviceSecret обязателен
+        if (empty($serviceSecret)) {
+            throw new AuthException(
+                'serviceSecret is required for IssueServiceToken. Provide it as parameter or in config.',
+                400
+            );
+        }
+
         $payload = $request->toArray();
         
         // Добавляем project_id из конфига если не указан
