@@ -2,7 +2,7 @@
     "name": "kabiroman/octawire-auth-service-php-client",
     "description": "PHP client for Octawire Auth Service using JATP (JSON Auth Transport Protocol) over TCP",
     "type": "library",
-    "version": "0.9.2",
+    "version": "0.9.3",
     "keywords": ["auth", "jwt", "tcp", "octawire"],
     "license": "MIT",
     "require": {

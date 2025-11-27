@@ -7,6 +7,56 @@
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-11-27
+
+### Добавлено
+- **Service Authentication поддержка:**
+  - Добавлен `service_secret` параметр в `Config` класс для межсервисной аутентификации
+  - Улучшен метод `issueServiceToken` с валидацией параметров и поддержкой service secret из конфигурации
+  - Добавлена обработка ошибки `AUTH_FAILED` (403) для service authentication failures
+  - Обновлен пример `examples/tcp.php` с правильным использованием `IssueServiceTokenRequest` и обработкой ошибок
+- **Полная поддержка всех JATP error codes:**
+  - Добавлена обработка всех кодов ошибок из спецификации `JATP_METHODS_1.0.json`:
+    * `AUTH_FAILED` - для service authentication failures
+    * `ERROR_EXPIRED_TOKEN`, `ERROR_INVALID_TOKEN`, `ERROR_INVALID_SIGNATURE`
+    * `ERROR_INVALID_ISSUER`, `ERROR_INVALID_AUDIENCE`
+    * `ERROR_TOKEN_REVOKED`, `ERROR_REFRESH_TOKEN_INVALID`, `ERROR_REFRESH_TOKEN_EXPIRED`
+    * `ERROR_INVALID_USER_ID`
+  - Улучшена логика определения типа ошибки по содержимому сообщения
+- **Расширенная документация:**
+  - Добавлен раздел "Service Authentication" в README.md с примерами использования
+  - Добавлен раздел "Примеры подключения" с описанием всех 4 кейсов (PROD/DEV + service_auth=true/false)
+  - Обновлен пример `examples/tls.php` для использования `tcp.tls` формата вместо legacy `tls`
+  - Добавлен новый пример `examples/connection-scenarios.php` с примерами для всех 4 сценариев подключения
+- **Комплексное тестирование:**
+  - Добавлен `ErrorHandlerTest` с 23 тестами для всех кодов ошибок
+  - Добавлены тесты для `issueServiceToken` валидации и service secret из конфигурации
+  - Добавлены тесты для `Config` с `service_secret` параметром
+  - Добавлен интеграционный тест `test-all-scenarios.php` для тестирования всех 4 сценариев подключения
+  - Всего 36 тестов (было 13), все проходят успешно
+
+### Изменено
+- Обновлен `ErrorHandler` для полного соответствия спецификации JATP_METHODS_1.0.json
+- Улучшена валидация в `issueServiceToken` метод: добавлена проверка обязательных параметров
+- Обновлена документация README.md с информацией о соответствии спецификации
+
+### Исправлено
+- Исправлена обработка ошибок: добавлена поддержка всех кодов ошибок из спецификации
+- Улучшена логика определения типа ошибки по содержимому сообщения для лучшей обработки ошибок без JATP error structure
+
+### Технические детали
+- Полное соответствие спецификации `JATP_METHODS_1.0.json`
+- Service secret может быть указан в конфигурации или передан как параметр метода
+- Приоритет: параметр метода > конфигурация
+- Все коды ошибок маппятся в соответствующие типы исключений
+
+### Результаты тестирования
+- ✅ 36 unit-тестов проходят успешно (было 13)
+- ✅ Все 4 сценария подключения протестированы (PROD/DEV + service_auth=true/false)
+- ✅ Service authentication работает корректно
+- ✅ Все коды ошибок обрабатываются правильно
+- ✅ Health check, IssueToken, IssueServiceToken работают во всех сценариях
+
 ## [0.9.2] - 2025-11-26
 
 ### Исправлено
