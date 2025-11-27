@@ -7,6 +7,9 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Kabiroman\Octawire\AuthService\Client\Config;
 use Kabiroman\Octawire\AuthService\Client\AuthClient;
 use Kabiroman\Octawire\AuthService\Client\Exception\AuthException;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\RefreshTokenRequest;
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
 
 echo "=== PHP JATP Client Example ===\n\n";
@@ -63,21 +66,22 @@ try {
 // Пример 2: Выдача токена
 echo "=== IssueToken ===\n";
 try {
-    $response = $client->issueToken([
-        'user_id' => 'user-123',
-        'claims' => ['role' => 'admin', 'email' => 'user@example.com'],
-        'access_token_ttl' => 3600,  // 1 час
-        'refresh_token_ttl' => 86400, // 24 часа
-    ]);
+    $request = new IssueTokenRequest(
+        userId: 'user-123',
+        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
+        claims: ['role' => 'admin', 'email' => 'user@example.com'],
+        accessTokenTtl: 3600,  // 1 час
+        refreshTokenTtl: 86400, // 24 часа
+    );
+    
+    $response = $client->issueToken($request);
 
-    $accessToken = $response['access_token'] ?? '';
-    $refreshToken = $response['refresh_token'] ?? '';
+    $accessToken = $response->accessToken;
+    $refreshToken = $response->refreshToken;
     
     echo "Access Token: " . substr($accessToken, 0, 50) . "...\n";
     echo "Refresh Token: " . substr($refreshToken, 0, 50) . "...\n";
-    if (isset($response['access_token_expires_at'])) {
-        echo "Access Token Expires At: " . date('Y-m-d H:i:s', $response['access_token_expires_at']) . "\n";
-    }
+    echo "Access Token Expires At: " . date('Y-m-d H:i:s', $response->accessTokenExpiresAt) . "\n";
     echo "✓ Token issued successfully\n\n";
 } catch (AuthException $e) {
     echo "✗ Error: " . $e->getMessage() . "\n\n";
@@ -89,25 +93,28 @@ try {
 if (isset($accessToken) && !empty($accessToken)) {
     echo "=== ValidateToken ===\n";
     try {
-        $validateResponse = $client->validateToken([
-            'token' => $accessToken,
-            'check_blacklist' => true,
-        ]);
+        $validateRequest = new ValidateTokenRequest(
+            token: $accessToken,
+            projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
+            checkBlacklist: true,
+        );
+        
+        $validateResponse = $client->validateToken($validateRequest);
 
-        if ($validateResponse['valid'] ?? false) {
+        if ($validateResponse->valid) {
             echo "✓ Token is valid\n";
-            if (isset($validateResponse['claims'])) {
-                $claims = $validateResponse['claims'];
-                echo "User ID: " . ($claims['user_id'] ?? 'N/A') . "\n";
-                if (isset($claims['issued_at'])) {
-                    echo "Issued At: " . date('Y-m-d H:i:s', $claims['issued_at']) . "\n";
+            if ($validateResponse->claims !== null) {
+                $claims = $validateResponse->claims;
+                echo "User ID: " . ($claims->userId ?? 'N/A') . "\n";
+                if (isset($claims->issuedAt)) {
+                    echo "Issued At: " . date('Y-m-d H:i:s', $claims->issuedAt) . "\n";
                 }
-                if (isset($claims['expires_at'])) {
-                    echo "Expires At: " . date('Y-m-d H:i:s', $claims['expires_at']) . "\n";
+                if (isset($claims->expiresAt)) {
+                    echo "Expires At: " . date('Y-m-d H:i:s', $claims->expiresAt) . "\n";
                 }
             }
         } else {
-            echo "✗ Token is invalid: " . ($validateResponse['error'] ?? 'Unknown error') . "\n";
+            echo "✗ Token is invalid: " . ($validateResponse->error ?? 'Unknown error') . "\n";
         }
         echo "\n";
     } catch (AuthException $e) {
@@ -119,13 +126,16 @@ if (isset($accessToken) && !empty($accessToken)) {
 if (isset($refreshToken) && !empty($refreshToken)) {
     echo "=== RefreshToken ===\n";
     try {
-        $refreshResponse = $client->refreshToken([
-            'refresh_token' => $refreshToken,
-        ]);
+        $refreshRequest = new RefreshTokenRequest(
+            refreshToken: $refreshToken,
+            projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
+        );
+        
+        $refreshResponse = $client->refreshToken($refreshRequest);
 
-        echo "New Access Token: " . substr($refreshResponse['access_token'] ?? '', 0, 50) . "...\n";
-        if (isset($refreshResponse['refresh_token']) && !empty($refreshResponse['refresh_token'])) {
-            echo "New Refresh Token: " . substr($refreshResponse['refresh_token'], 0, 50) . "...\n";
+        echo "New Access Token: " . substr($refreshResponse->accessToken, 0, 50) . "...\n";
+        if ($refreshResponse->refreshToken !== null && !empty($refreshResponse->refreshToken)) {
+            echo "New Refresh Token: " . substr($refreshResponse->refreshToken, 0, 50) . "...\n";
         }
         echo "✓ Token refreshed successfully\n\n";
     } catch (AuthException $e) {
@@ -155,6 +165,7 @@ echo "=== IssueServiceToken ===\n";
 try {
     $request = new IssueServiceTokenRequest(
         sourceService: 'identity-service',
+        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
         targetService: 'gateway-service',
         userId: 'service-user',
         claims: ['service' => 'identity-service'],

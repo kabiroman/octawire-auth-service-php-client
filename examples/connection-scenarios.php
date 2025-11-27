@@ -82,6 +82,7 @@ try {
     // IssueServiceToken с service authentication
     $request = new IssueServiceTokenRequest(
         sourceService: 'identity-service',
+        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
         targetService: 'gateway-service',
         ttl: 3600,
     );
@@ -165,6 +166,7 @@ try {
     // IssueServiceToken с service authentication
     $request = new IssueServiceTokenRequest(
         sourceService: 'identity-service',
+        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
         targetService: 'gateway-service',
         ttl: 3600,
     );

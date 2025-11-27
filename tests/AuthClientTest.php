@@ -101,6 +101,7 @@ class AuthClientTest extends TestCase
 
         $request = new IssueServiceTokenRequest(
             sourceService: '', // Пустой sourceService
+            projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
             ttl: 3600,
         );
 
@@ -125,6 +126,7 @@ class AuthClientTest extends TestCase
 
         $request = new IssueServiceTokenRequest(
             sourceService: 'identity-service',
+            projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
             ttl: 3600,
         );
 
@@ -149,6 +151,7 @@ class AuthClientTest extends TestCase
 
         $request = new IssueServiceTokenRequest(
             sourceService: 'identity-service',
+            projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
             ttl: 3600,
         );
 
@@ -174,6 +177,7 @@ class AuthClientTest extends TestCase
 
         $request = new IssueServiceTokenRequest(
             sourceService: 'identity-service',
+            projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
             ttl: 3600,
         );
 

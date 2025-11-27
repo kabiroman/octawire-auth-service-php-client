@@ -7,6 +7,25 @@
 
 ## [Unreleased]
 
+## [0.9.4] - 2025-01-28
+
+### Изменено
+- **BREAKING**: `project_id` теперь обязателен для всех токен-методов (v0.9.3+)
+  - `IssueTokenRequest`: `projectId` теперь обязательное поле (не nullable)
+  - `IssueServiceTokenRequest`: `projectId` теперь обязательное поле (не nullable)
+  - `ValidateTokenRequest`: добавлено обязательное поле `projectId`
+  - `RefreshTokenRequest`: добавлено обязательное поле `projectId`
+  - `ParseTokenRequest`: добавлено обязательное поле `projectId`
+  - `ExtractClaimsRequest`: добавлено обязательное поле `projectId`
+  - `RevokeTokenRequest`: добавлено обязательное поле `projectId`
+- Удалена логика автоматического добавления `project_id` из конфигурации в `AuthClient`
+- Обновлены все методы `AuthClient` для соответствия новой спецификации
+- Обновлены все примеры для включения обязательного `projectId` в Request классах
+- Обновлены тесты для использования обязательного `projectId`
+
+### Соответствие спецификациям
+- Полное соответствие `JATP_METHODS_1.0.json` по обязательности `project_id` для всех токен-методов
+
 ## [0.9.3] - 2025-11-27
 
 ### Добавлено

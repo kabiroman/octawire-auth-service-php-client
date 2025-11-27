@@ -6,12 +6,13 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для валидации токена
- * НЕ принимает project_id - определяется автоматически из токена
+ * project_id обязателен (v0.9.3+)
  */
 class ValidateTokenRequest
 {
     public function __construct(
         public readonly string $token,
+        public readonly string $projectId, // Обязательное поле (v0.9.3+)
         public readonly bool $checkBlacklist = true
     ) {
     }
@@ -20,6 +21,7 @@ class ValidateTokenRequest
     {
         return [
             'token' => $this->token,
+            'project_id' => $this->projectId,
             'check_blacklist' => $this->checkBlacklist,
         ];
     }

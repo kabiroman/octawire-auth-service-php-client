@@ -81,21 +81,23 @@ class AuthClient
         ?string $serviceSecret = null
     ): array {
         // Методы, которые принимают project_id в payload (согласно JATP_METHODS_1.0.json)
+        // project_id теперь всегда обязателен в payload для этих методов (v0.9.3+)
         $methodsWithProjectId = [
             'JWTService.IssueToken',
             'JWTService.IssueServiceToken',
+            'JWTService.ValidateToken',
+            'JWTService.RefreshToken',
+            'JWTService.ParseToken',
+            'JWTService.ExtractClaims',
+            'JWTService.RevokeToken',
             'JWTService.GetPublicKey',
             'APIKeyService.CreateAPIKey',
             'APIKeyService.RevokeAPIKey',
             'APIKeyService.ListAPIKeys',
         ];
 
-        // Добавляем project_id только для методов, которые его принимают
-        if (in_array($method, $methodsWithProjectId, true)) {
-            if (is_array($payload) && !isset($payload['project_id']) && $this->config->projectId !== null) {
-                $payload['project_id'] = $this->config->projectId;
-            }
-        }
+        // project_id теперь всегда должен быть в payload от Request классов
+        // Удалена логика автоматического добавления из конфига
 
         return $this->retryHandler->execute(function () use ($method, $payload, $jwtToken, $serviceName, $serviceSecret) {
             try {
@@ -113,15 +115,11 @@ class AuthClient
 
     /**
      * Выдача нового JWT токена (access + refresh)
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function issueToken(JWTRequest\IssueTokenRequest $request): JWTResponse\IssueTokenResponse
     {
         $payload = $request->toArray();
-        
-        // Добавляем project_id из конфига если не указан
-        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
-            $payload['project_id'] = $this->config->projectId;
-        }
         
         $response = $this->callRaw('JWTService.IssueToken', $payload);
         return JWTResponse\IssueTokenResponse::fromArray($response);
@@ -129,6 +127,7 @@ class AuthClient
 
     /**
      * Выдача межсервисного JWT токена
+     * project_id обязателен в Request (v0.9.3+)
      *
      * @param JWTRequest\IssueServiceTokenRequest $request Запрос на выдачу токена
      * @param string|null $serviceSecret Секрет сервиса (если не указан, используется из конфигурации)
@@ -157,11 +156,6 @@ class AuthClient
 
         $payload = $request->toArray();
         
-        // Добавляем project_id из конфига если не указан
-        if (!isset($payload['project_id']) && $this->config->projectId !== null) {
-            $payload['project_id'] = $this->config->projectId;
-        }
-        
         $response = $this->callRaw(
             'JWTService.IssueServiceToken',
             $payload,
@@ -175,7 +169,7 @@ class AuthClient
 
     /**
      * Валидация токена
-     * НЕ принимает project_id - определяется автоматически из токена
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function validateToken(
         JWTRequest\ValidateTokenRequest $request,
@@ -190,7 +184,7 @@ class AuthClient
 
     /**
      * Обновление токена
-     * НЕ принимает project_id - определяется автоматически из refresh token
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function refreshToken(JWTRequest\RefreshTokenRequest $request): JWTResponse\RefreshTokenResponse
     {
@@ -202,7 +196,7 @@ class AuthClient
 
     /**
      * Отзыв токена
-     * НЕ принимает project_id - определяется автоматически из токена
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function revokeToken(
         JWTRequest\RevokeTokenRequest $request,
@@ -217,7 +211,7 @@ class AuthClient
 
     /**
      * Парсинг токена без валидации
-     * НЕ принимает project_id - определяется автоматически из токена
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function parseToken(
         JWTRequest\ParseTokenRequest $request,
@@ -232,7 +226,7 @@ class AuthClient
 
     /**
      * Извлечение claims из токена
-     * НЕ принимает project_id - определяется автоматически из токена
+     * project_id обязателен в Request (v0.9.3+)
      */
     public function extractClaims(
         JWTRequest\ExtractClaimsRequest $request,

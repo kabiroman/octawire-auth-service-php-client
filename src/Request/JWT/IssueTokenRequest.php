@@ -12,11 +12,11 @@ class IssueTokenRequest
 {
     public function __construct(
         public readonly string $userId,
+        public readonly string $projectId, // Обязательное поле (v0.9.3+)
         public readonly ?array $claims = null,
         public readonly ?int $accessTokenTtl = null,
         public readonly ?int $refreshTokenTtl = null,
         public readonly ?string $deviceId = null,
-        public readonly ?string $projectId = null,
         public readonly ?string $tokenType = null // 'access' | 'refresh'
     ) {
     }
@@ -25,6 +25,7 @@ class IssueTokenRequest
     {
         $data = [
             'user_id' => $this->userId,
+            'project_id' => $this->projectId, // Всегда включаем project_id
         ];
 
         if ($this->claims !== null) {
@@ -38,9 +39,6 @@ class IssueTokenRequest
         }
         if ($this->deviceId !== null) {
             $data['device_id'] = $this->deviceId;
-        }
-        if ($this->projectId !== null) {
-            $data['project_id'] = $this->projectId;
         }
         if ($this->tokenType !== null) {
             $data['token_type'] = $this->tokenType;

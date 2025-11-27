@@ -1,6 +1,8 @@
 # PHP Client для Auth Service
 
-PHP клиент для работы с Auth Service (v0.9.1) через JATP (TCP/JSON протокол).
+PHP клиент для работы с Auth Service (v0.9.4) через JATP (TCP/JSON протокол).
+
+> **Breaking Change (v0.9.4):** `project_id` теперь обязателен для всех токен-методов (IssueToken, IssueServiceToken, ValidateToken, RefreshToken, ParseToken, ExtractClaims, RevokeToken). Вы должны явно указывать `projectId` в каждом Request классе.
 
 **Репозиторий:** [https://github.com/kabiroman/octawire-auth-service-php-client](https://github.com/kabiroman/octawire-auth-service-php-client)
 
@@ -52,6 +54,7 @@ composer require kabiroman/octawire-auth-service-php-client
 
 use Kabiroman\Octawire\AuthService\Client\Config;
 use Kabiroman\Octawire\AuthService\Client\AuthClient;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -66,14 +69,16 @@ $config = new Config([
 $client = new AuthClient($config);
 
 // Выдаем токен
-$response = $client->issueToken([
-    'user_id' => 'user-123',
-    'claims' => ['role' => 'admin'],
-    'access_token_ttl' => 3600,
-    'refresh_token_ttl' => 86400,
-]);
+$request = new IssueTokenRequest(
+    userId: 'user-123',
+    projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
+    claims: ['role' => 'admin'],
+    accessTokenTtl: 3600,
+    refreshTokenTtl: 86400,
+);
+$response = $client->issueToken($request);
 
-echo "Access Token: " . ($response['access_token'] ?? 'N/A') . "\n";
+echo "Access Token: " . $response->accessToken . "\n";
 ```
 
 ## Конфигурация
@@ -145,24 +150,32 @@ $config = new Config([
 #### IssueToken - Выдача токена
 
 ```php
-$response = $client->issueToken([
-    'user_id' => 'user-123',
-    'claims' => ['role' => 'admin'],
-    'access_token_ttl' => 3600,
-    'refresh_token_ttl' => 86400,
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest;
+
+$request = new IssueTokenRequest(
+    userId: 'user-123',
+    projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
+    claims: ['role' => 'admin'],
+    accessTokenTtl: 3600,
+    refreshTokenTtl: 86400,
+);
+$response = $client->issueToken($request);
 ```
 
 #### ValidateToken - Валидация токена
 
 ```php
-$response = $client->validateToken([
-    'token' => 'jwt-token',
-    'check_blacklist' => true,
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest;
 
-if ($response->isValid()) {
-    $claims = $response->getClaims();
+$request = new ValidateTokenRequest(
+    token: 'jwt-token',
+    projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
+    checkBlacklist: true,
+);
+$response = $client->validateToken($request);
+
+if ($response->valid) {
+    $claims = $response->claims;
     // ...
 }
 ```
@@ -170,9 +183,13 @@ if ($response->isValid()) {
 #### RefreshToken - Обновление токена
 
 ```php
-$response = $client->refreshToken([
-    'refresh_token' => 'refresh-token',
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\RefreshTokenRequest;
+
+$request = new RefreshTokenRequest(
+    refreshToken: 'refresh-token',
+    projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
+);
+$response = $client->refreshToken($request);
 ```
 
 #### GetPublicKey - Получение публичного ключа (с кэшированием)
@@ -255,6 +272,7 @@ $config = new Config([
 // Вариант 2: При вызове метода
 $request = new IssueServiceTokenRequest(
     sourceService: 'identity-service',
+    projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
     targetService: 'gateway-service',
     ttl: 3600,
 );
@@ -269,6 +287,7 @@ use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
 try {
     $request = new IssueServiceTokenRequest(
         sourceService: 'identity-service',
+        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
         targetService: 'gateway-service',
         userId: 'service-user', // Опционально
         claims: ['service' => 'identity-service'], // Опционально
@@ -402,8 +421,14 @@ use Kabiroman\Octawire\AuthService\Client\Exception\TokenRevokedException;
 use Kabiroman\Octawire\AuthService\Client\Exception\ConnectionException;
 use Kabiroman\Octawire\AuthService\Client\Exception\RateLimitException;
 
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest;
+
 try {
-    $response = $client->validateToken(['token' => $token]);
+    $request = new ValidateTokenRequest(
+        token: $token,
+        projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
+    );
+    $response = $client->validateToken($request);
 } catch (InvalidTokenException $e) {
     // Токен невалиден
 } catch (TokenExpiredException $e) {
@@ -421,28 +446,32 @@ try {
 
 ## Работа с несколькими проектами
 
-Клиент поддерживает работу с несколькими проектами. Вы можете указать `project_id` в конфигурации (для всех запросов) или в каждом запросе отдельно:
+> **Важно (v0.9.3+):** `project_id` теперь обязателен для всех токен-методов. Вы должны явно указывать `projectId` в каждом Request классе.
+
+Клиент поддерживает работу с несколькими проектами. Вы должны указать `projectId` в каждом Request:
 
 ```php
-// Дефолтный проект из конфигурации
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest;
+
 $config = new Config([
     'transport' => 'tcp',
     'address' => 'localhost:50052',
-    'project_id' => 'default-project-id',
 ]);
 $client = new AuthClient($config);
 
-// Использование дефолтного проекта
-$response = $client->issueToken([
-    'user_id' => 'user-123',
-    // project_id не указан, используется из конфигурации
-]);
+// Использование проекта по умолчанию
+$request = new IssueTokenRequest(
+    userId: 'user-123',
+    projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
+);
+$response = $client->issueToken($request);
 
 // Использование другого проекта
-$response = $client->issueToken([
-    'user_id' => 'user-123',
-    'project_id' => 'another-project-id',
-]);
+$request = new IssueTokenRequest(
+    userId: 'user-123',
+    projectId: 'another-project-id', // Обязательное поле (v0.9.3+)
+);
+$response = $client->issueToken($request);
 ```
 
 ## Примеры подключения

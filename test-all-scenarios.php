@@ -127,10 +127,10 @@ foreach ($scenarios as $scenario) {
         try {
             $issueTokenRequest = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest(
                 userId: 'test-user-123',
+                projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
                 claims: ['test' => 'true'],
                 accessTokenTtl: 3600,
                 refreshTokenTtl: 86400,
-                projectId: null, // Single-project config
             );
             $tokenResponse = $client->issueToken($issueTokenRequest);
             echo "✓ Token issued successfully\n";
@@ -148,9 +148,9 @@ foreach ($scenarios as $scenario) {
             try {
                 $serviceTokenRequest = new IssueServiceTokenRequest(
                     sourceService: 'identity-service',
+                    projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
                     targetService: 'gateway-service',
                     ttl: 3600,
-                    projectId: null, // Single-project config
                 );
                 $serviceTokenResponse = $client->issueServiceToken($serviceTokenRequest);
                 echo "✓ Service token issued successfully\n";
@@ -172,9 +172,9 @@ foreach ($scenarios as $scenario) {
             try {
                 $serviceTokenRequest = new IssueServiceTokenRequest(
                     sourceService: 'identity-service',
+                    projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
                     targetService: 'gateway-service',
                     ttl: 3600,
-                    projectId: null, // Single-project config
                 );
                 $serviceTokenResponse = $client->issueServiceToken($serviceTokenRequest, 'wrong-secret');
                 echo "✗ Service token issued with wrong secret (unexpected!)\n";

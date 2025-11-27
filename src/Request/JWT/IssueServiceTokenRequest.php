@@ -11,11 +11,11 @@ class IssueServiceTokenRequest
 {
     public function __construct(
         public readonly string $sourceService,
+        public readonly string $projectId, // Обязательное поле (v0.9.3+)
         public readonly ?string $targetService = null,
         public readonly ?string $userId = null,
         public readonly ?array $claims = null,
-        public readonly ?int $ttl = null,
-        public readonly ?string $projectId = null
+        public readonly ?int $ttl = null
     ) {
     }
 
@@ -23,6 +23,7 @@ class IssueServiceTokenRequest
     {
         $data = [
             'source_service' => $this->sourceService,
+            'project_id' => $this->projectId, // Всегда включаем project_id
         ];
 
         if ($this->targetService !== null) {
@@ -36,9 +37,6 @@ class IssueServiceTokenRequest
         }
         if ($this->ttl !== null) {
             $data['ttl'] = $this->ttl;
-        }
-        if ($this->projectId !== null) {
-            $data['project_id'] = $this->projectId;
         }
 
         return $data;

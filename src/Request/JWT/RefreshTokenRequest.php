@@ -6,11 +6,13 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для обновления токена
+ * project_id обязателен (v0.9.3+)
  */
 class RefreshTokenRequest
 {
     public function __construct(
         public readonly string $refreshToken,
+        public readonly string $projectId, // Обязательное поле (v0.9.3+)
         public readonly ?string $deviceId = null
     ) {
     }
@@ -19,6 +21,7 @@ class RefreshTokenRequest
     {
         $data = [
             'refresh_token' => $this->refreshToken,
+            'project_id' => $this->projectId,
         ];
 
         if ($this->deviceId !== null) {
