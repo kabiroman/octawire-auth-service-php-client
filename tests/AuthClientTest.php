@@ -110,8 +110,9 @@ class AuthClientTest extends TestCase
         $client->issueServiceToken($request);
     }
 
-    public function testIssueServiceTokenValidationMissingServiceSecret(): void
+    public function testIssueServiceTokenWithoutServiceSecret(): void
     {
+        // Test that IssueServiceToken can be called without serviceSecret (optional in v1.0+)
         $config = new Config([
             'transport' => 'tcp',
             'tcp' => [
@@ -119,7 +120,7 @@ class AuthClientTest extends TestCase
                 'port' => 50052,
                 'tls' => ['enabled' => false],
             ],
-            // service_secret не указан
+            // service_secret не указан - опциональный (v1.0+)
         ]);
 
         $client = new AuthClient($config);
@@ -130,8 +131,9 @@ class AuthClientTest extends TestCase
             ttl: 3600,
         );
 
-        $this->expectException(AuthException::class);
-        $this->expectExceptionMessage('serviceSecret is required');
+        // Должно работать без serviceSecret (будет вызвано без service auth)
+        // Но так как сервер недоступен, получим ConnectionException
+        $this->expectException(ConnectionException::class);
         $client->issueServiceToken($request);
     }
 
@@ -185,6 +187,105 @@ class AuthClientTest extends TestCase
         // Но так как сервер недоступен, получим ConnectionException
         $this->expectException(ConnectionException::class);
         $client->issueServiceToken($request, 'parameter-secret');
+    }
+    
+    public function testValidateTokenWithoutJWT(): void
+    {
+        // Test that ValidateToken can be called without JWT token (optional service auth in v1.0+)
+        $config = new Config([
+            'transport' => 'tcp',
+            'tcp' => [
+                'host' => 'localhost',
+                'port' => 50052,
+                'tls' => ['enabled' => false],
+            ],
+            // api_key не указан - не используется для ValidateToken в v1.0+
+        ]);
+
+        $client = new AuthClient($config);
+
+        $request = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest(
+            token: 'test-token',
+            projectId: 'test-project-id',
+        );
+
+        // Должно работать без JWT токена (будет вызвано как публичный метод или с опциональной service auth)
+        // Но так как сервер недоступен, получим ConnectionException
+        $this->expectException(ConnectionException::class);
+        $client->validateToken($request);
+    }
+    
+    public function testParseTokenWithoutJWT(): void
+    {
+        // Test that ParseToken can be called without JWT token (optional service auth in v1.0+)
+        $config = new Config([
+            'transport' => 'tcp',
+            'tcp' => [
+                'host' => 'localhost',
+                'port' => 50052,
+                'tls' => ['enabled' => false],
+            ],
+        ]);
+
+        $client = new AuthClient($config);
+
+        $request = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\ParseTokenRequest(
+            token: 'test-token',
+            projectId: 'test-project-id',
+        );
+
+        // Должно работать без JWT токена (v1.0+)
+        $this->expectException(ConnectionException::class);
+        $client->parseToken($request);
+    }
+    
+    public function testExtractClaimsWithoutJWT(): void
+    {
+        // Test that ExtractClaims can be called without JWT token (optional service auth in v1.0+)
+        $config = new Config([
+            'transport' => 'tcp',
+            'tcp' => [
+                'host' => 'localhost',
+                'port' => 50052,
+                'tls' => ['enabled' => false],
+            ],
+        ]);
+
+        $client = new AuthClient($config);
+
+        $request = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\ExtractClaimsRequest(
+            token: 'test-token',
+            projectId: 'test-project-id',
+            claimKeys: ['user_id'],
+        );
+
+        // Должно работать без JWT токена (v1.0+)
+        $this->expectException(ConnectionException::class);
+        $client->extractClaims($request);
+    }
+    
+    public function testValidateBatchWithoutJWT(): void
+    {
+        // Test that ValidateBatch can be called without JWT token (optional service auth in v1.0+)
+        $config = new Config([
+            'transport' => 'tcp',
+            'tcp' => [
+                'host' => 'localhost',
+                'port' => 50052,
+                'tls' => ['enabled' => false],
+            ],
+        ]);
+
+        $client = new AuthClient($config);
+
+        $request = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateBatchRequest(
+            tokens: ['test-token-1', 'test-token-2'],
+            checkBlacklist: true,
+        );
+
+        // Должно работать без JWT токена (v1.0+)
+        $this->expectException(ConnectionException::class);
+        $client->validateBatch($request);
     }
 }
 

@@ -19,9 +19,9 @@ class RevokeTokenRequest
 
     public function toArray(): array
     {
+        // project_id передается через metadata, не через payload (v1.0+)
         $data = [
             'token' => $this->token,
-            'project_id' => $this->projectId,
         ];
 
         if ($this->ttl !== null) {

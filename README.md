@@ -1,12 +1,10 @@
 # PHP Client для Auth Service
 
-PHP клиент для работы с Auth Service (v0.9.4) через JATP (TCP/JSON протокол).
-
-> **Breaking Change (v0.9.4):** `project_id` теперь обязателен для всех токен-методов (IssueToken, IssueServiceToken, ValidateToken, RefreshToken, ParseToken, ExtractClaims, RevokeToken). Вы должны явно указывать `projectId` в каждом Request классе.
+PHP клиент для работы с Auth Service (v1.0) через JATP (TCP/JSON протокол).
 
 **Репозиторий:** [https://github.com/kabiroman/octawire-auth-service-php-client](https://github.com/kabiroman/octawire-auth-service-php-client)
 
-**Соответствие спецификации:** Клиент полностью соответствует спецификации JATP_METHODS_1.0.json и обрабатывает все коды ошибок, определенные в спецификации.
+**Соответствие спецификации:** Клиент полностью соответствует спецификации JATP_METHODS_1.0 и обрабатывает все коды ошибок, определенные в спецификации.
 
 ## Требования
 
@@ -143,6 +141,33 @@ $config = new Config([
 ]);
 ```
 
+## Типы аутентификации (v1.0+)
+
+### Публичные методы
+
+Следующие методы не требуют аутентификации:
+- `IssueToken` - выдача токенов
+- `RefreshToken` - обновление токенов
+- `GetPublicKey` - получение публичного ключа
+- `HealthCheck` - проверка здоровья сервиса
+
+### Методы с опциональной service authentication (v1.0+)
+
+Следующие методы поддерживают опциональную service authentication:
+- `IssueServiceToken` - service auth опциональна (рекомендуется для production)
+- `ValidateToken` - service auth опциональна, или публичный (без аутентификации, особенно для localhost)
+- `ParseToken` - service auth опциональна, или публичный (без аутентификации, особенно для localhost)
+- `ExtractClaims` - service auth опциональна, или публичный (без аутентификации, особенно для localhost)
+- `ValidateBatch` - service auth опциональна, или публичный (без аутентификации, особенно для localhost)
+
+**Важно (v1.0+):** Service authentication теперь опциональна для этих методов. Если `service_auth.enabled = true` на сервере, service authentication доступна но не обязательна (рекомендуется для production).
+
+### Методы, требующие JWT токен
+
+Следующие методы требуют JWT токен:
+- `RevokeToken` - требует JWT (user revoking their own token)
+- Все методы `APIKeyService.*` - требуют JWT (key management operations)
+
 ## Использование
 
 ### JWT Service методы
@@ -164,14 +189,24 @@ $response = $client->issueToken($request);
 
 #### ValidateToken - Валидация токена
 
+**Authentication опциональна (v1.0+)** - можно использовать service auth или работать без аутентификации (особенно для localhost):
+
 ```php
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest;
 
+// Вариант 1: С service authentication (рекомендуется для production)
 $request = new ValidateTokenRequest(
     token: 'jwt-token',
     projectId: 'your-project-id', // Обязательное поле (v0.9.3+)
     checkBlacklist: true,
 );
+$response = $client->validateToken(
+    $request,
+    serviceName: 'gateway-service', // Опционально
+    serviceSecret: 'gateway-service-secret' // Опционально
+);
+
+// Вариант 2: Без аутентификации (для localhost или если service_auth.enabled = false)
 $response = $client->validateToken($request);
 
 if ($response->valid) {
@@ -179,6 +214,8 @@ if ($response->valid) {
     // ...
 }
 ```
+
+**Примечание:** Токен в поле `token` - это токен, который валидируется, а не токен для аутентификации запроса.
 
 #### RefreshToken - Обновление токена
 
@@ -195,59 +232,174 @@ $response = $client->refreshToken($request);
 #### GetPublicKey - Получение публичного ключа (с кэшированием)
 
 ```php
-$response = $client->getPublicKey([
-    'project_id' => 'project-id',
-    'key_id' => 'key-id', // Опционально
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\GetPublicKeyRequest;
+
+$request = new GetPublicKeyRequest(
+    projectId: 'project-id',
+    keyId: 'key-id', // Опционально
+);
+
+$response = $client->getPublicKey($request);
 ```
 
 Метод автоматически кэширует ключи и использует кэш при повторных запросах.
 
 ### API Key Service методы
 
+**Все методы APIKeyService требуют JWT токен** (JWTToken должен быть передан при вызове метода).
+
 #### CreateAPIKey - Создание API ключа
 
 ```php
-$response = $client->createAPIKey([
-    'project_id' => 'project-id',
-    'name' => 'My API Key',
-    'scopes' => ['read', 'write'],
-    'ttl' => 86400 * 30, // 30 дней
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\APIKey\CreateAPIKeyRequest;
+
+$request = new CreateAPIKeyRequest(
+    projectId: 'project-id',
+    name: 'My API Key',
+    scopes: ['read', 'write'],
+    ttl: 86400 * 30, // 30 дней
+);
+
+$jwtToken = 'user-jwt-token'; // JWT токен пользователя
+$response = $client->createAPIKey($request, jwtToken: $jwtToken);
 ```
 
 #### ValidateAPIKey - Валидация API ключа
 
 ```php
-$response = $client->validateAPIKey([
-    'api_key' => 'api-key',
-    'required_scopes' => ['read'],
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\APIKey\ValidateAPIKeyRequest;
+
+$request = new ValidateAPIKeyRequest(
+    apiKey: 'api-key',
+    requiredScopes: ['read'],
+);
+
+$jwtToken = 'user-jwt-token';
+$response = $client->validateAPIKey($request, jwtToken: $jwtToken);
 ```
 
 #### ListAPIKeys - Список API ключей
 
 ```php
-$response = $client->listAPIKeys([
-    'project_id' => 'project-id',
-    'user_id' => 'user-id', // Опционально
-    'page' => 1,
-    'page_size' => 10,
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\APIKey\ListAPIKeysRequest;
+
+$request = new ListAPIKeysRequest(
+    projectId: 'project-id',
+    userId: 'user-id', // Опционально
+    page: 1,
+    pageSize: 10,
+);
+
+$jwtToken = 'user-jwt-token';
+$response = $client->listAPIKeys($request, jwtToken: $jwtToken);
 ```
 
 #### RevokeAPIKey - Отзыв API ключа
 
 ```php
-$response = $client->revokeAPIKey([
-    'key_id' => 'key-id',
-    'project_id' => 'project-id',
-]);
+use Kabiroman\Octawire\AuthService\Client\Request\APIKey\RevokeAPIKeyRequest;
+
+$request = new RevokeAPIKeyRequest(
+    keyId: 'key-id',
+    projectId: 'project-id',
+);
+
+$jwtToken = 'user-jwt-token';
+$response = $client->revokeAPIKey($request, jwtToken: $jwtToken);
+```
+
+#### ParseToken - Парсинг токена без валидации
+
+**Authentication опциональна (v1.0+)**:
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ParseTokenRequest;
+
+$request = new ParseTokenRequest(
+    token: 'jwt-token',
+    projectId: 'your-project-id',
+);
+
+// Без аутентификации или с опциональной service auth
+$response = $client->parseToken($request, serviceName: 'gateway-service', serviceSecret: 'secret');
+```
+
+#### ExtractClaims - Извлечение claims из токена
+
+**Authentication опциональна (v1.0+)**:
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ExtractClaimsRequest;
+
+$request = new ExtractClaimsRequest(
+    token: 'jwt-token',
+    projectId: 'your-project-id',
+    claimKeys: ['user_id', 'role', 'email'],
+);
+
+// Без аутентификации или с опциональной service auth
+$response = $client->extractClaims($request, serviceName: 'gateway-service', serviceSecret: 'secret');
+```
+
+#### ValidateBatch - Пакетная валидация токенов
+
+**Authentication опциональна (v1.0+)**:
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateBatchRequest;
+
+$request = new ValidateBatchRequest(
+    tokens: ['token1', 'token2', 'token3'],
+    checkBlacklist: true,
+);
+
+// Без аутентификации или с опциональной service auth
+$response = $client->validateBatch($request, serviceName: 'gateway-service', serviceSecret: 'secret');
+```
+
+#### IssueServiceToken - Выдача межсервисного токена
+
+**Service authentication опциональна (v1.0+)**:
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
+
+$request = new IssueServiceTokenRequest(
+    sourceService: 'identity-service',
+    targetService: 'gateway-service',
+    projectId: 'your-project-id',
+    ttl: 3600,
+);
+
+// С service auth (рекомендуется для production)
+$response = $client->issueServiceToken($request, serviceSecret: 'identity-service-secret');
+
+// Или без service auth (для localhost)
+$response = $client->issueServiceToken($request);
+```
+
+**Примечание (v1.0+):** Service authentication теперь опциональна. Если `service_auth.enabled = true` на сервере, service authentication доступна но не обязательна (рекомендуется для production).
+
+#### RevokeToken - Отзыв токена
+
+**Требует JWT токен**:
+
+```php
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\RevokeTokenRequest;
+
+$request = new RevokeTokenRequest(
+    token: 'jwt-token-to-revoke',
+    projectId: 'your-project-id',
+);
+
+// Требуется JWT токен для аутентификации
+$jwtToken = 'user-jwt-token'; // JWT токен пользователя
+$response = $client->revokeToken($request, jwtToken: $jwtToken);
 ```
 
 ## Service Authentication
 
-Service Authentication используется для межсервисной аутентификации при вызове `IssueServiceToken`. Это дополнительный слой защиты поверх TLS/mTLS.
+Service Authentication используется для межсервисной аутентификации. В v1.0+ она опциональна для методов `IssueServiceToken`, `ValidateToken`, `ParseToken`, `ExtractClaims`, `ValidateBatch`.
 
 ### Настройка
 
@@ -281,21 +433,26 @@ $response = $client->issueServiceToken($request, 'identity-service-secret-abc123
 
 ### Использование
 
+**Важно (v1.0+):** Service authentication теперь опциональна. Вы можете вызывать методы без service auth, особенно для localhost соединений.
+
 ```php
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueServiceTokenRequest;
 
 try {
     $request = new IssueServiceTokenRequest(
         sourceService: 'identity-service',
-        projectId: 'default-project-id', // Обязательное поле (v0.9.3+)
+        projectId: 'default-project-id',
         targetService: 'gateway-service',
         userId: 'service-user', // Опционально
         claims: ['service' => 'identity-service'], // Опционально
         ttl: 3600, // Опционально
     );
     
-    // Service secret можно передать как параметр или использовать из конфигурации
-    $response = $client->issueServiceToken($request, 'identity-service-secret-abc123def456');
+    // Вариант 1: С service auth (рекомендуется для production)
+    $response = $client->issueServiceToken($request, serviceSecret: 'identity-service-secret-abc123def456');
+    
+    // Вариант 2: Без service auth (для localhost или если service_auth.enabled = false)
+    $response = $client->issueServiceToken($request);
     
     echo "Service Token: " . substr($response->accessToken, 0, 50) . "...\n";
 } catch (AuthException $e) {
@@ -307,6 +464,29 @@ try {
     error_log("Failed to issue service token: " . $e->getMessage());
 }
 ```
+
+## JWT Authentication
+
+Для методов, требующих JWT аутентификации (RevokeToken и все методы APIKeyService), требуется JWT токен. JWT токен передается при вызове метода как параметр:
+
+```php
+// Получить JWT токен через IssueToken
+$issueRequest = new IssueTokenRequest(
+    userId: 'user-123',
+    projectId: 'project-id',
+);
+$issueResponse = $client->issueToken($issueRequest);
+$jwtToken = $issueResponse->accessToken;
+
+// Использовать JWT токен для методов требующих JWT
+$revokeRequest = new RevokeTokenRequest(
+    token: 'token-to-revoke',
+    projectId: 'project-id',
+);
+$client->revokeToken($revokeRequest, jwtToken: $jwtToken);
+```
+
+**Важно:** Для методов с опциональной аутентификацией (ValidateToken, ParseToken, ExtractClaims, ValidateBatch) можно использовать service auth или работать без аутентификации (особенно для localhost или если service_auth.enabled = false).
 
 ### Обработка ошибок
 

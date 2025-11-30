@@ -128,11 +128,11 @@ class AuthClient
     /**
      * Выдача межсервисного JWT токена
      * project_id обязателен в Request (v0.9.3+)
+     * Service authentication опциональна (v1.0+)
      *
      * @param JWTRequest\IssueServiceTokenRequest $request Запрос на выдачу токена
-     * @param string|null $serviceSecret Секрет сервиса (если не указан, используется из конфигурации)
+     * @param string|null $serviceSecret Секрет сервиса (опционально, если не указан - вызывается без service auth)
      * @return JWTResponse\IssueTokenResponse
-     * @throws AuthException Если serviceSecret не указан и отсутствует в конфигурации
      */
     public function issueServiceToken(
         JWTRequest\IssueServiceTokenRequest $request,
@@ -144,24 +144,17 @@ class AuthClient
         }
 
         // Используем serviceSecret из параметра или из конфигурации
+        // Если не указан - метод будет вызван без service auth (для localhost/optional scenarios v1.0+)
         $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
         
-        // Валидация: serviceSecret обязателен
-        if (empty($serviceSecret)) {
-            throw new AuthException(
-                'serviceSecret is required for IssueServiceToken. Provide it as parameter or in config.',
-                400
-            );
-        }
-
         $payload = $request->toArray();
         
         $response = $this->callRaw(
             'JWTService.IssueServiceToken',
             $payload,
-            null,
-            $request->sourceService,
-            $serviceSecret
+            null, // jwtToken
+            $request->sourceService, // serviceName
+            $serviceSecret // может быть null - будет опциональная auth (v1.0+)
         );
         
         return JWTResponse\IssueTokenResponse::fromArray($response);
@@ -170,15 +163,34 @@ class AuthClient
     /**
      * Валидация токена
      * project_id обязателен в Request (v0.9.3+)
+     * Authentication опциональна (v1.0+): может использовать service auth или работать как публичный метод
+     *
+     * @param JWTRequest\ValidateTokenRequest $request Запрос на валидацию токена
+     * @param string|null $serviceName Имя сервиса для service auth (опционально)
+     * @param string|null $serviceSecret Секрет сервиса для service auth (опционально)
+     * @return JWTResponse\ValidateTokenResponse
      */
     public function validateToken(
         JWTRequest\ValidateTokenRequest $request,
-        ?string $jwtToken = null
+        ?string $serviceName = null,
+        ?string $serviceSecret = null
     ): JWTResponse\ValidateTokenResponse {
-        $jwtToken ??= $this->config->apiKey;
+        // Если service auth не указана - используем из конфига или вызываем как публичный метод
+        $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
+        
+        // Если serviceSecret есть, но serviceName не указан - не используем service auth (будет публичный метод)
+        // Если оба указаны - используем service auth
+        
         $payload = $request->toArray();
         
-        $response = $this->callRaw('JWTService.ValidateToken', $payload, $jwtToken);
+        $response = $this->callRaw(
+            'JWTService.ValidateToken',
+            $payload,
+            null, // jwtToken - не используется для этого метода (v1.0+)
+            $serviceName,
+            $serviceSecret
+        );
+        
         return JWTResponse\ValidateTokenResponse::fromArray($response);
     }
 
@@ -212,45 +224,93 @@ class AuthClient
     /**
      * Парсинг токена без валидации
      * project_id обязателен в Request (v0.9.3+)
+     * Authentication опциональна (v1.0+): может использовать service auth или работать как публичный метод
+     *
+     * @param JWTRequest\ParseTokenRequest $request Запрос на парсинг токена
+     * @param string|null $serviceName Имя сервиса для service auth (опционально)
+     * @param string|null $serviceSecret Секрет сервиса для service auth (опционально)
+     * @return JWTResponse\ParseTokenResponse
      */
     public function parseToken(
         JWTRequest\ParseTokenRequest $request,
-        ?string $jwtToken = null
+        ?string $serviceName = null,
+        ?string $serviceSecret = null
     ): JWTResponse\ParseTokenResponse {
-        $jwtToken ??= $this->config->apiKey;
+        // Если service auth не указана - используем из конфига или вызываем как публичный метод
+        $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
+        
         $payload = $request->toArray();
         
-        $response = $this->callRaw('JWTService.ParseToken', $payload, $jwtToken);
+        $response = $this->callRaw(
+            'JWTService.ParseToken',
+            $payload,
+            null, // jwtToken - не используется для этого метода (v1.0+)
+            $serviceName,
+            $serviceSecret
+        );
+        
         return JWTResponse\ParseTokenResponse::fromArray($response);
     }
 
     /**
      * Извлечение claims из токена
      * project_id обязателен в Request (v0.9.3+)
+     * Authentication опциональна (v1.0+): может использовать service auth или работать как публичный метод
+     *
+     * @param JWTRequest\ExtractClaimsRequest $request Запрос на извлечение claims
+     * @param string|null $serviceName Имя сервиса для service auth (опционально)
+     * @param string|null $serviceSecret Секрет сервиса для service auth (опционально)
+     * @return JWTResponse\ExtractClaimsResponse
      */
     public function extractClaims(
         JWTRequest\ExtractClaimsRequest $request,
-        ?string $jwtToken = null
+        ?string $serviceName = null,
+        ?string $serviceSecret = null
     ): JWTResponse\ExtractClaimsResponse {
-        $jwtToken ??= $this->config->apiKey;
+        // Если service auth не указана - используем из конфига или вызываем как публичный метод
+        $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
+        
         $payload = $request->toArray();
         
-        $response = $this->callRaw('JWTService.ExtractClaims', $payload, $jwtToken);
+        $response = $this->callRaw(
+            'JWTService.ExtractClaims',
+            $payload,
+            null, // jwtToken - не используется для этого метода (v1.0+)
+            $serviceName,
+            $serviceSecret
+        );
+        
         return JWTResponse\ExtractClaimsResponse::fromArray($response);
     }
 
     /**
      * Пакетная валидация токенов
      * НЕ принимает project_id - определяется автоматически из токенов
+     * Authentication опциональна (v1.0+): может использовать service auth или работать как публичный метод
+     *
+     * @param JWTRequest\ValidateBatchRequest $request Запрос на пакетную валидацию
+     * @param string|null $serviceName Имя сервиса для service auth (опционально)
+     * @param string|null $serviceSecret Секрет сервиса для service auth (опционально)
+     * @return JWTResponse\ValidateBatchResponse
      */
     public function validateBatch(
         JWTRequest\ValidateBatchRequest $request,
-        ?string $jwtToken = null
+        ?string $serviceName = null,
+        ?string $serviceSecret = null
     ): JWTResponse\ValidateBatchResponse {
-        $jwtToken ??= $this->config->apiKey;
+        // Если service auth не указана - используем из конфига или вызываем как публичный метод
+        $serviceSecret = $serviceSecret ?? $this->config->serviceSecret;
+        
         $payload = $request->toArray();
         
-        $response = $this->callRaw('JWTService.ValidateBatch', $payload, $jwtToken);
+        $response = $this->callRaw(
+            'JWTService.ValidateBatch',
+            $payload,
+            null, // jwtToken - не используется для этого метода (v1.0+)
+            $serviceName,
+            $serviceSecret
+        );
+        
         return JWTResponse\ValidateBatchResponse::fromArray($response);
     }
 

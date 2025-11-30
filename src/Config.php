@@ -25,7 +25,8 @@ class Config
     public readonly ?string $apiKey;
 
     /**
-     * Service secret для межсервисной аутентификации (опционально)
+     * Service secret для межсервисной аутентификации (опционально, v1.0+)
+     * Service authentication теперь опциональна для методов IssueServiceToken, ValidateToken, ParseToken, ExtractClaims, ValidateBatch
      */
     public readonly ?string $serviceSecret;
 

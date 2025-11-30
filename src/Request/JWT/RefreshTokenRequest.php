@@ -19,9 +19,9 @@ class RefreshTokenRequest
 
     public function toArray(): array
     {
+        // project_id передается через metadata, не через payload (v1.0+)
         $data = [
             'refresh_token' => $this->refreshToken,
-            'project_id' => $this->projectId,
         ];
 
         if ($this->deviceId !== null) {

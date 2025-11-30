@@ -19,9 +19,9 @@ class ValidateTokenRequest
 
     public function toArray(): array
     {
+        // project_id передается через metadata, не через payload (v1.0+)
         return [
             'token' => $this->token,
-            'project_id' => $this->projectId,
             'check_blacklist' => $this->checkBlacklist,
         ];
     }
