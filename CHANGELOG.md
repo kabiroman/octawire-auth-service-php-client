@@ -7,19 +7,47 @@
 
 ## [Unreleased]
 
-## [0.9.4] - 2025-11-30
+## [0.9.4] - 2025-12-01
+
+### BREAKING CHANGES
+- **HealthCheckResponse**: Поле `healthy` (bool) заменено на `status` (string)
+  - Возможные значения Status: `"healthy"`, `"degraded"`, `"unhealthy"`
+  - Добавлено поле `timestamp` (int) с Unix timestamp проверки
+  - Добавлены хелпер-методы `isHealthy()` и `isOperational()`
+  - Миграция: `$response->healthy` → `$response->status === 'healthy'` или `$response->isHealthy()`
+- **JATPProtocol**: Все envelope поля JATP протокола конвертированы на camelCase:
+  - `protocol_version` → `protocolVersion`
+  - `request_id` → `requestId`
+  - `jwt_token` → `jwtToken`
+  - `service_name` → `serviceName`
+  - `service_secret` → `serviceSecret`
+- **Все Request классы**: Payload поля конвертированы на camelCase согласно спецификации JATP v1.0:
+  - `user_id` → `userId`, `project_id` → `projectId`
+  - `access_token_ttl` → `accessTokenTtl`, `refresh_token_ttl` → `refreshTokenTtl`
+  - `device_id` → `deviceId`, `token_type` → `tokenType`
+  - `check_blacklist` → `checkBlacklist`, `claim_keys` → `claimKeys`
+  - `source_service` → `sourceService`, `target_service` → `targetService`
+  - `api_key` → `apiKey`, `key_id` → `keyId`
+  - `allowed_ips` → `allowedIps`, `required_scopes` → `requiredScopes`
+  - `page_size` → `pageSize`
+- **ValidateBatchRequest**: Добавлено обязательное поле `projectId`
+- **ValidateAPIKeyRequest**: Добавлено обязательное поле `projectId`
 
 ### Изменено
-- Обновлен для соответствия Auth Service Protocol v1.0 (JATP)
+- Обновлен для соответствия Auth Service Protocol v1.0 (JATP) спецификации
 - Service authentication теперь опциональна для методов `IssueServiceToken`, `ValidateToken`, `ParseToken`, `ExtractClaims`, `ValidateBatch`
 - Методы `ValidateToken`, `ParseToken`, `ExtractClaims`, `ValidateBatch` больше не требуют JWT токен - используют опциональную service auth или работают как публичные методы
 
 ### Добавлено
 - Константа `Version::VERSION` для программного доступа к версии клиента
+- **IssueTokenResponse / RefreshTokenResponse**: добавлены поля `expiresIn` и `refreshExpiresIn` (TTL в секундах)
+- **TokenClaims**: добавлены поля `jwtId` и `keyId` согласно спецификации
+- **HealthCheckResponse**: константы `STATUS_HEALTHY`, `STATUS_DEGRADED`, `STATUS_UNHEALTHY`
 - Полная поддержка JATP Protocol v1.0:
   * Опциональная service authentication для методов валидации
   * Публичный доступ к методам валидации без аутентификации (для localhost)
   * Правильная обработка JWT токена только для методов, требующих JWT (RevokeToken, APIKeyService)
+  * camelCase именование всех полей согласно спецификации
 - Рефакторинг интеграционных тестов:
   * Переиспользуемые функции для тестирования различных сценариев
   * Тест `testAllScenariosV1()` покрывающий 4 сценария (TLS/no-TLS × auth/no-auth)
@@ -40,11 +68,45 @@
 - Улучшена обработка JWT токенов для методов требующих JWT
 - Добавлены юнит-тесты для проверки опциональной service auth
 - Обновлены примеры для соответствия v1.0 спецификации
+- Обновлены unit-тесты для camelCase payload
 
 ### Соответствие спецификациям
-- Полное соответствие спецификации JATP_METHODS_1.0.md
+- Полное соответствие спецификации JATP_METHODS_1.0.json
+- Полное соответствие спецификации JATP_1.0.md по camelCase именованию
 - Соответствие требованиям Auth Service Protocol v1.0 по опциональной service authentication
 - Корректная обработка JWT аутентификации только для требуемых методов
+
+### Миграция с 0.9.3
+
+```php
+// HealthCheckResponse - BREAKING CHANGE
+// Было:
+if ($response->healthy) { ... }
+
+// Стало:
+if ($response->isHealthy()) { ... }
+// или
+if ($response->status === 'healthy') { ... }
+
+// Новые поля в Response
+$response->expiresIn;        // TTL access токена в секундах
+$response->refreshExpiresIn; // TTL refresh токена в секундах
+$response->timestamp;        // Unix timestamp проверки (HealthCheck)
+
+// ValidateBatchRequest теперь требует projectId
+// Было:
+$request = new ValidateBatchRequest(tokens: [...], checkBlacklist: true);
+
+// Стало:
+$request = new ValidateBatchRequest(tokens: [...], projectId: 'project-uuid', checkBlacklist: true);
+
+// ValidateAPIKeyRequest теперь требует projectId
+// Было:
+$request = new ValidateAPIKeyRequest(apiKey: 'key');
+
+// Стало:
+$request = new ValidateAPIKeyRequest(apiKey: 'key', projectId: 'project-uuid');
+```
 
 ## [0.9.3] - 2025-11-27
 

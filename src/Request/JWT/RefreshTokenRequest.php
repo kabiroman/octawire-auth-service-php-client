@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для обновления токена
- * project_id обязателен (v0.9.3+)
+ * projectId обязателен (v0.9.3+)
  */
 class RefreshTokenRequest
 {
@@ -19,16 +19,15 @@ class RefreshTokenRequest
 
     public function toArray(): array
     {
-        // project_id передается через metadata, не через payload (v1.0+)
         $data = [
-            'refresh_token' => $this->refreshToken,
+            'refreshToken' => $this->refreshToken,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->deviceId !== null) {
-            $data['device_id'] = $this->deviceId;
+            $data['deviceId'] = $this->deviceId;
         }
 
         return $data;
     }
 }
-

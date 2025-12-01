@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для парсинга токена без валидации
- * project_id обязателен (v0.9.3+)
+ * projectId обязателен (v0.9.3+)
  */
 class ParseTokenRequest
 {
@@ -18,10 +18,9 @@ class ParseTokenRequest
 
     public function toArray(): array
     {
-        // project_id передается через metadata, не через payload (v1.0+)
         return [
             'token' => $this->token,
+            'projectId' => $this->projectId,
         ];
     }
 }
-

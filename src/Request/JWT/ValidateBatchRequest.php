@@ -6,12 +6,13 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для пакетной валидации токенов
- * НЕ принимает project_id - определяется автоматически из токенов
+ * projectId обязателен (v0.9.4+)
  */
 class ValidateBatchRequest
 {
     public function __construct(
         public readonly array $tokens, // Массив токенов (максимум 50)
+        public readonly string $projectId, // Обязательное поле (v0.9.4+)
         public readonly bool $checkBlacklist = true
     ) {
         if (count($tokens) > 50) {
@@ -26,8 +27,8 @@ class ValidateBatchRequest
     {
         return [
             'tokens' => $this->tokens,
-            'check_blacklist' => $this->checkBlacklist,
+            'projectId' => $this->projectId,
+            'checkBlacklist' => $this->checkBlacklist,
         ];
     }
 }
-

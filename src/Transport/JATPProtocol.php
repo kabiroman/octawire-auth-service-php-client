@@ -39,18 +39,18 @@ class JATPProtocol
         }
         
         $request = [
-            'protocol_version' => self::PROTOCOL_VERSION,
+            'protocolVersion' => self::PROTOCOL_VERSION,
             'method' => $method,
-            'request_id' => $requestId ?? $this->generateRequestId(),
+            'requestId' => $requestId ?? $this->generateRequestId(),
             'payload' => $payload,
         ];
 
         // Add authentication
         if ($jwtToken !== null) {
-            $request['jwt_token'] = $jwtToken;
+            $request['jwtToken'] = $jwtToken;
         } elseif ($serviceName !== null && $serviceSecret !== null) {
-            $request['service_name'] = $serviceName;
-            $request['service_secret'] = $serviceSecret;
+            $request['serviceName'] = $serviceName;
+            $request['serviceSecret'] = $serviceSecret;
         }
 
         return json_encode($request, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
@@ -67,12 +67,12 @@ class JATPProtocol
     {
         $response = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
-        if (!isset($response['protocol_version'])) {
-            throw new \InvalidArgumentException('Missing protocol_version in response');
+        if (!isset($response['protocolVersion'])) {
+            throw new \InvalidArgumentException('Missing protocolVersion in response');
         }
 
-        if (!isset($response['request_id'])) {
-            throw new \InvalidArgumentException('Missing request_id in response');
+        if (!isset($response['requestId'])) {
+            throw new \InvalidArgumentException('Missing requestId in response');
         }
 
         if (!isset($response['success'])) {
@@ -80,8 +80,8 @@ class JATPProtocol
         }
 
         return [
-            'protocol_version' => $response['protocol_version'],
-            'request_id' => $response['request_id'],
+            'protocolVersion' => $response['protocolVersion'],
+            'requestId' => $response['requestId'],
             'success' => (bool)$response['success'],
             'data' => $response['data'] ?? null,
             'error' => $response['error'] ?? null,

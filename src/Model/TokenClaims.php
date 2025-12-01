@@ -16,6 +16,8 @@ class TokenClaims
         public readonly int $expiresAt,
         public readonly string $issuer,
         public readonly string $audience,
+        public readonly string $jwtId = '',
+        public readonly string $keyId = '',
         public readonly array $customClaims = []
     ) {
     }
@@ -42,12 +44,14 @@ class TokenClaims
     public static function fromArray(array $data): self
     {
         // Поддержка как camelCase (из protobuf), так и snake_case (из JSON)
-        $userId = $data['user_id'] ?? $data['userId'] ?? $data['sub'] ?? '';
-        $tokenType = $data['token_type'] ?? $data['tokenType'] ?? '';
-        $issuedAt = (int)($data['issued_at'] ?? $data['issuedAt'] ?? $data['iat'] ?? 0);
-        $expiresAt = (int)($data['expires_at'] ?? $data['expiresAt'] ?? $data['exp'] ?? 0);
+        $userId = $data['userId'] ?? $data['user_id'] ?? $data['sub'] ?? '';
+        $tokenType = $data['tokenType'] ?? $data['token_type'] ?? '';
+        $issuedAt = (int)($data['issuedAt'] ?? $data['issued_at'] ?? $data['iat'] ?? 0);
+        $expiresAt = (int)($data['expiresAt'] ?? $data['expires_at'] ?? $data['exp'] ?? 0);
         $issuer = $data['issuer'] ?? $data['iss'] ?? '';
         $audience = $data['audience'] ?? $data['aud'] ?? '';
+        $jwtId = $data['jwtId'] ?? $data['jwt_id'] ?? $data['jti'] ?? '';
+        $keyId = $data['keyId'] ?? $data['key_id'] ?? '';
         
         // Извлекаем кастомные claims
         // Если есть customClaims в данных - используем их, иначе извлекаем все нестандартные ключи
@@ -58,9 +62,17 @@ class TokenClaims
             $customClaims = $data['custom_claims'];
         } else {
             // Извлекаем кастомные claims (все кроме стандартных)
-            $standardKeys = ['user_id', 'userId', 'sub', 'token_type', 'tokenType', 
-                            'issued_at', 'issuedAt', 'iat', 'expires_at', 'expiresAt', 'exp',
-                            'issuer', 'iss', 'audience', 'aud', 'custom_claims', 'customClaims', 'jwt_id', 'jti', 'jwtId'];
+            $standardKeys = [
+                'userId', 'user_id', 'sub',
+                'tokenType', 'token_type',
+                'issuedAt', 'issued_at', 'iat',
+                'expiresAt', 'expires_at', 'exp',
+                'issuer', 'iss',
+                'audience', 'aud',
+                'jwtId', 'jwt_id', 'jti',
+                'keyId', 'key_id',
+                'customClaims', 'custom_claims'
+            ];
             foreach ($data as $key => $value) {
                 if (!in_array($key, $standardKeys, true)) {
                     $customClaims[$key] = $value;
@@ -75,6 +87,8 @@ class TokenClaims
             expiresAt: $expiresAt,
             issuer: $issuer,
             audience: $audience,
+            jwtId: $jwtId,
+            keyId: $keyId,
             customClaims: $customClaims
         );
     }
@@ -85,14 +99,15 @@ class TokenClaims
     public function toArray(): array
     {
         return [
-            'user_id' => $this->userId,
-            'token_type' => $this->tokenType,
-            'issued_at' => $this->issuedAt,
-            'expires_at' => $this->expiresAt,
+            'userId' => $this->userId,
+            'tokenType' => $this->tokenType,
+            'issuedAt' => $this->issuedAt,
+            'expiresAt' => $this->expiresAt,
             'issuer' => $this->issuer,
             'audience' => $this->audience,
-            'custom_claims' => $this->customClaims,
+            'jwtId' => $this->jwtId,
+            'keyId' => $this->keyId,
+            'customClaims' => $this->customClaims,
         ];
     }
 }
-

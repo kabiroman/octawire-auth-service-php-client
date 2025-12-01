@@ -11,6 +11,7 @@ use Kabiroman\Octawire\AuthService\Client\Request\JWT\ParseTokenRequest;
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\RefreshTokenRequest;
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\RevokeTokenRequest;
 use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateTokenRequest;
+use Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateBatchRequest;
 use PHPUnit\Framework\TestCase;
 
 class RequestTest extends TestCase
@@ -27,11 +28,11 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('user-123', $data['user_id']);
-        $this->assertEquals('project-456', $data['project_id']);
+        $this->assertEquals('user-123', $data['userId']);
+        $this->assertEquals('project-456', $data['projectId']);
         $this->assertEquals(['role' => 'admin'], $data['claims']);
-        $this->assertEquals(3600, $data['access_token_ttl']);
-        $this->assertEquals(86400, $data['refresh_token_ttl']);
+        $this->assertEquals(3600, $data['accessTokenTtl']);
+        $this->assertEquals(86400, $data['refreshTokenTtl']);
     }
 
     public function testIssueTokenRequestWithMinimalFields(): void
@@ -43,10 +44,10 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('user-123', $data['user_id']);
-        $this->assertEquals('project-456', $data['project_id']);
+        $this->assertEquals('user-123', $data['userId']);
+        $this->assertEquals('project-456', $data['projectId']);
         $this->assertArrayNotHasKey('claims', $data);
-        $this->assertArrayNotHasKey('access_token_ttl', $data);
+        $this->assertArrayNotHasKey('accessTokenTtl', $data);
     }
 
     public function testIssueServiceTokenRequestWithProjectId(): void
@@ -62,10 +63,10 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('identity-service', $data['source_service']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertEquals('gateway-service', $data['target_service']);
-        $this->assertEquals('service-user', $data['user_id']);
+        $this->assertEquals('identity-service', $data['sourceService']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertEquals('gateway-service', $data['targetService']);
+        $this->assertEquals('service-user', $data['userId']);
         $this->assertEquals(['service' => 'identity'], $data['claims']);
         $this->assertEquals(3600, $data['ttl']);
     }
@@ -79,10 +80,10 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('identity-service', $data['source_service']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertArrayNotHasKey('target_service', $data);
-        $this->assertArrayNotHasKey('user_id', $data);
+        $this->assertEquals('identity-service', $data['sourceService']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertArrayNotHasKey('targetService', $data);
+        $this->assertArrayNotHasKey('userId', $data);
     }
 
     public function testValidateTokenRequestWithProjectId(): void
@@ -96,8 +97,8 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertTrue($data['check_blacklist']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertTrue($data['checkBlacklist']);
     }
 
     public function testValidateTokenRequestWithCheckBlacklistFalse(): void
@@ -111,8 +112,8 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertFalse($data['check_blacklist']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertFalse($data['checkBlacklist']);
     }
 
     public function testRefreshTokenRequestWithProjectId(): void
@@ -125,9 +126,9 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('refresh-token-123', $data['refresh_token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertEquals('device-789', $data['device_id']);
+        $this->assertEquals('refresh-token-123', $data['refreshToken']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertEquals('device-789', $data['deviceId']);
     }
 
     public function testRefreshTokenRequestWithoutDeviceId(): void
@@ -139,9 +140,9 @@ class RequestTest extends TestCase
 
         $data = $request->toArray();
 
-        $this->assertEquals('refresh-token-123', $data['refresh_token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertArrayNotHasKey('device_id', $data);
+        $this->assertEquals('refresh-token-123', $data['refreshToken']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertArrayNotHasKey('deviceId', $data);
     }
 
     public function testParseTokenRequestWithProjectId(): void
@@ -154,7 +155,7 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
+        $this->assertEquals('project-456', $data['projectId']);
     }
 
     public function testExtractClaimsRequestWithProjectId(): void
@@ -162,14 +163,14 @@ class RequestTest extends TestCase
         $request = new ExtractClaimsRequest(
             token: 'jwt-token-123',
             projectId: 'project-456',
-            claimKeys: ['user_id', 'role'],
+            claimKeys: ['userId', 'role'],
         );
 
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertEquals(['user_id', 'role'], $data['claim_keys']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertEquals(['userId', 'role'], $data['claimKeys']);
     }
 
     public function testExtractClaimsRequestWithoutClaimKeys(): void
@@ -182,8 +183,8 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
-        $this->assertArrayNotHasKey('claim_keys', $data);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertArrayNotHasKey('claimKeys', $data);
     }
 
     public function testRevokeTokenRequestWithProjectId(): void
@@ -197,7 +198,7 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
+        $this->assertEquals('project-456', $data['projectId']);
         $this->assertEquals(3600, $data['ttl']);
     }
 
@@ -211,8 +212,45 @@ class RequestTest extends TestCase
         $data = $request->toArray();
 
         $this->assertEquals('jwt-token-123', $data['token']);
-        $this->assertEquals('project-456', $data['project_id']);
+        $this->assertEquals('project-456', $data['projectId']);
         $this->assertArrayNotHasKey('ttl', $data);
+    }
+
+    public function testValidateBatchRequestWithProjectId(): void
+    {
+        $request = new ValidateBatchRequest(
+            tokens: ['token-1', 'token-2'],
+            projectId: 'project-456',
+            checkBlacklist: true,
+        );
+
+        $data = $request->toArray();
+
+        $this->assertEquals(['token-1', 'token-2'], $data['tokens']);
+        $this->assertEquals('project-456', $data['projectId']);
+        $this->assertTrue($data['checkBlacklist']);
+    }
+
+    public function testValidateBatchRequestRejectsEmptyTokens(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('At least one token is required');
+
+        new ValidateBatchRequest(
+            tokens: [],
+            projectId: 'project-456',
+        );
+    }
+
+    public function testValidateBatchRequestRejectsTooManyTokens(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Maximum 50 tokens allowed per batch');
+
+        new ValidateBatchRequest(
+            tokens: array_fill(0, 51, 'token'),
+            projectId: 'project-456',
+        );
     }
 
     public function testAllRequestClassesIncludeProjectId(): void
@@ -225,13 +263,13 @@ class RequestTest extends TestCase
             new ParseTokenRequest('token-123', 'project-456'),
             new ExtractClaimsRequest('token-123', 'project-456'),
             new RevokeTokenRequest('token-123', 'project-456'),
+            new ValidateBatchRequest(['token-1'], 'project-456'),
         ];
 
         foreach ($requests as $request) {
             $data = $request->toArray();
-            $this->assertArrayHasKey('project_id', $data, get_class($request) . ' must include project_id');
-            $this->assertEquals('project-456', $data['project_id'], get_class($request) . ' must have correct project_id');
+            $this->assertArrayHasKey('projectId', $data, get_class($request) . ' must include projectId');
+            $this->assertEquals('project-456', $data['projectId'], get_class($request) . ' must have correct projectId');
         }
     }
 }
-

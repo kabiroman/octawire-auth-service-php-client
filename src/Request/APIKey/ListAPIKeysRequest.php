@@ -26,16 +26,15 @@ class ListAPIKeysRequest
     public function toArray(): array
     {
         $data = [
-            'project_id' => $this->projectId,
+            'projectId' => $this->projectId,
             'page' => $this->page,
-            'page_size' => $this->pageSize,
+            'pageSize' => $this->pageSize,
         ];
 
         if ($this->userId !== null) {
-            $data['user_id'] = $this->userId;
+            $data['userId'] = $this->userId;
         }
 
         return $data;
     }
 }
-

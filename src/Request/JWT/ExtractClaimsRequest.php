@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для извлечения claims из токена
- * project_id обязателен (v0.9.3+)
+ * projectId обязателен (v0.9.3+)
  */
 class ExtractClaimsRequest
 {
@@ -19,16 +19,15 @@ class ExtractClaimsRequest
 
     public function toArray(): array
     {
-        // project_id передается через metadata, не через payload (v1.0+)
         $data = [
             'token' => $this->token,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->claimKeys !== null) {
-            $data['claim_keys'] = $this->claimKeys;
+            $data['claimKeys'] = $this->claimKeys;
         }
 
         return $data;
     }
 }
-

@@ -24,27 +24,26 @@ class IssueTokenRequest
     public function toArray(): array
     {
         $data = [
-            'user_id' => $this->userId,
-            'project_id' => $this->projectId, // Всегда включаем project_id
+            'userId' => $this->userId,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->claims !== null) {
             $data['claims'] = $this->claims;
         }
         if ($this->accessTokenTtl !== null) {
-            $data['access_token_ttl'] = $this->accessTokenTtl;
+            $data['accessTokenTtl'] = $this->accessTokenTtl;
         }
         if ($this->refreshTokenTtl !== null) {
-            $data['refresh_token_ttl'] = $this->refreshTokenTtl;
+            $data['refreshTokenTtl'] = $this->refreshTokenTtl;
         }
         if ($this->deviceId !== null) {
-            $data['device_id'] = $this->deviceId;
+            $data['deviceId'] = $this->deviceId;
         }
         if ($this->tokenType !== null) {
-            $data['token_type'] = $this->tokenType;
+            $data['tokenType'] = $this->tokenType;
         }
 
         return $data;
     }
 }
-

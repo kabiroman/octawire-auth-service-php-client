@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для отзыва токена
- * project_id обязателен (v0.9.3+)
+ * projectId обязателен (v0.9.3+)
  */
 class RevokeTokenRequest
 {
@@ -19,9 +19,9 @@ class RevokeTokenRequest
 
     public function toArray(): array
     {
-        // project_id передается через metadata, не через payload (v1.0+)
         $data = [
             'token' => $this->token,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->ttl !== null) {
@@ -31,4 +31,3 @@ class RevokeTokenRequest
         return $data;
     }
 }
-

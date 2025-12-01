@@ -48,12 +48,15 @@ class ErrorHandler
         // Обработка обычных исключений
         $code = $err->getCode();
 
-        // Проверка на ошибки подключения
+        // Проверка на ошибки подключения и протокола
         if (str_contains(strtolower($message), 'connection') ||
             str_contains(strtolower($message), 'connect') ||
             str_contains(strtolower($message), 'unreachable') ||
             str_contains(strtolower($message), 'timeout') ||
-            str_contains(strtolower($message), 'closed')) {
+            str_contains(strtolower($message), 'closed') ||
+            str_contains(strtolower($message), 'missing protocolversion') ||
+            str_contains(strtolower($message), 'missing requestid') ||
+            str_contains(strtolower($message), 'protocol') && str_contains(strtolower($message), 'missing')) {
             return new ConnectionException($message, $code, $err);
         }
 

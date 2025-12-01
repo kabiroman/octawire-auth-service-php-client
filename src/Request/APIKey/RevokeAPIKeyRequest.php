@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\APIKey;
 
 /**
  * Request для отзыва API ключа
- * Требует project_id и либо key_id, либо api_key
+ * Требует projectId и либо keyId, либо apiKey
  */
 class RevokeAPIKeyRequest
 {
@@ -23,17 +23,16 @@ class RevokeAPIKeyRequest
     public function toArray(): array
     {
         $data = [
-            'project_id' => $this->projectId,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->keyId !== null) {
-            $data['key_id'] = $this->keyId;
+            $data['keyId'] = $this->keyId;
         }
         if ($this->apiKey !== null) {
-            $data['api_key'] = $this->apiKey;
+            $data['apiKey'] = $this->apiKey;
         }
 
         return $data;
     }
 }
-

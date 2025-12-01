@@ -280,6 +280,7 @@ class AuthClientTest extends TestCase
 
         $request = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\ValidateBatchRequest(
             tokens: ['test-token-1', 'test-token-2'],
+            projectId: 'test-project-id', // Обязательное поле (v0.9.4+)
             checkBlacklist: true,
         );
 

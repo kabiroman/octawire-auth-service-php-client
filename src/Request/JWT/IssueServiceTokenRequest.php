@@ -22,15 +22,15 @@ class IssueServiceTokenRequest
     public function toArray(): array
     {
         $data = [
-            'source_service' => $this->sourceService,
-            'project_id' => $this->projectId, // Всегда включаем project_id
+            'sourceService' => $this->sourceService,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->targetService !== null) {
-            $data['target_service'] = $this->targetService;
+            $data['targetService'] = $this->targetService;
         }
         if ($this->userId !== null) {
-            $data['user_id'] = $this->userId;
+            $data['userId'] = $this->userId;
         }
         if ($this->claims !== null) {
             $data['claims'] = $this->claims;
@@ -42,4 +42,3 @@ class IssueServiceTokenRequest
         return $data;
     }
 }
-

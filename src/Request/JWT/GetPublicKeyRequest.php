@@ -18,14 +18,13 @@ class GetPublicKeyRequest
     public function toArray(): array
     {
         $data = [
-            'project_id' => $this->projectId,
+            'projectId' => $this->projectId,
         ];
 
         if ($this->keyId !== null) {
-            $data['key_id'] = $this->keyId;
+            $data['keyId'] = $this->keyId;
         }
 
         return $data;
     }
 }
-

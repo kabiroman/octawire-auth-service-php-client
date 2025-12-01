@@ -6,7 +6,7 @@ namespace Kabiroman\Octawire\AuthService\Client\Request\JWT;
 
 /**
  * Request для валидации токена
- * project_id обязателен (v0.9.3+)
+ * projectId обязателен (v0.9.3+)
  */
 class ValidateTokenRequest
 {
@@ -19,11 +19,10 @@ class ValidateTokenRequest
 
     public function toArray(): array
     {
-        // project_id передается через metadata, не через payload (v1.0+)
         return [
             'token' => $this->token,
-            'check_blacklist' => $this->checkBlacklist,
+            'projectId' => $this->projectId,
+            'checkBlacklist' => $this->checkBlacklist,
         ];
     }
 }
-
