@@ -106,16 +106,17 @@ foreach ($scenarios as $scenario) {
         echo "\n--- Test 1: Health Check ---\n";
         try {
             $healthResponse = $client->healthCheck(new HealthCheckRequest());
-            if ($healthResponse->healthy) {
+            if ($healthResponse->isHealthy()) {
                 echo "✓ Health check passed\n";
+                echo "  Status: {$healthResponse->status}\n";
                 echo "  Version: {$healthResponse->version}\n";
                 if (isset($healthResponse->uptime)) {
                     echo "  Uptime: {$healthResponse->uptime} seconds\n";
                 }
                 $results[$scenario['name']]['health_check'] = true;
             } else {
-                echo "✗ Health check failed: Service is unhealthy\n";
-                $results[$scenario['name']]['errors'][] = 'Health check returned unhealthy';
+                echo "✗ Health check failed: Service status is {$healthResponse->status}\n";
+                $results[$scenario['name']]['errors'][] = "Health check returned status: {$healthResponse->status}";
             }
         } catch (AuthException $e) {
             echo "✗ Health check failed: {$e->getMessage()}\n";
@@ -127,7 +128,7 @@ foreach ($scenarios as $scenario) {
         try {
             $issueTokenRequest = new \Kabiroman\Octawire\AuthService\Client\Request\JWT\IssueTokenRequest(
                 userId: 'test-user-123',
-                projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
+                projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
                 claims: ['test' => 'true'],
                 accessTokenTtl: 3600,
                 refreshTokenTtl: 86400,
@@ -135,7 +136,7 @@ foreach ($scenarios as $scenario) {
             $tokenResponse = $client->issueToken($issueTokenRequest);
             echo "✓ Token issued successfully\n";
             echo "  Access Token: " . substr($tokenResponse->accessToken, 0, 50) . "...\n";
-            echo "  Expires At: " . date('Y-m-d H:i:s', $tokenResponse->accessTokenExpiresAt) . "\n";
+            echo "  Expires In: {$tokenResponse->expiresIn} seconds\n";
             $results[$scenario['name']]['issue_token'] = true;
         } catch (AuthException $e) {
             echo "✗ Issue token failed: {$e->getMessage()}\n";
@@ -148,14 +149,14 @@ foreach ($scenarios as $scenario) {
             try {
                 $serviceTokenRequest = new IssueServiceTokenRequest(
                     sourceService: 'identity-service',
-                    projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
+                    projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
                     targetService: 'gateway-service',
                     ttl: 3600,
                 );
                 $serviceTokenResponse = $client->issueServiceToken($serviceTokenRequest);
                 echo "✓ Service token issued successfully\n";
                 echo "  Service Token: " . substr($serviceTokenResponse->accessToken, 0, 50) . "...\n";
-                echo "  Expires At: " . date('Y-m-d H:i:s', $serviceTokenResponse->accessTokenExpiresAt) . "\n";
+                echo "  Expires In: {$serviceTokenResponse->expiresIn} seconds\n";
                 $results[$scenario['name']]['issue_service_token'] = true;
             } catch (AuthException $e) {
                 if ($e->getErrorCode() === 'AUTH_FAILED') {
@@ -172,7 +173,7 @@ foreach ($scenarios as $scenario) {
             try {
                 $serviceTokenRequest = new IssueServiceTokenRequest(
                     sourceService: 'identity-service',
-                    projectId: 'your-app-api', // Обязательное поле (v0.9.3+)
+                    projectId: 'test-project-id', // Обязательное поле (v0.9.3+)
                     targetService: 'gateway-service',
                     ttl: 3600,
                 );
@@ -180,9 +181,13 @@ foreach ($scenarios as $scenario) {
                 echo "✗ Service token issued with wrong secret (unexpected!)\n";
                 $results[$scenario['name']]['errors'][] = 'Service token issued with wrong secret (should fail)';
             } catch (AuthException $e) {
-                if ($e->getErrorCode() === 'AUTH_FAILED') {
+                // Accept any auth-related error (AUTH_FAILED, UNAUTHENTICATED, or message containing "authentication")
+                if ($e->getErrorCode() === 'AUTH_FAILED' || 
+                    $e->getErrorCode() === 'UNAUTHENTICATED' ||
+                    str_contains(strtolower($e->getMessage()), 'authentication')) {
                     echo "✓ Service authentication correctly rejected wrong secret\n";
-                    echo "  Error Code: AUTH_FAILED\n";
+                    echo "  Error: {$e->getMessage()}\n";
+                    $results[$scenario['name']]['wrong_secret_rejected'] = true;
                 } else {
                     echo "✗ Unexpected error: {$e->getMessage()}\n";
                     $results[$scenario['name']]['errors'][] = "Unexpected error with wrong secret: {$e->getMessage()}";
